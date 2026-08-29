@@ -1,0 +1,124 @@
+services:
+  nginx-proxy:
+    image: nginxproxy/nginx-proxy:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - nginx_certs:/etc/nginx/certs
+      - nginx_vhost:/etc/nginx/vhost.d
+      - nginx_html:/usr/share/nginx/html
+    labels:
+      - "com.github.nginx-proxy.nginx"
+    networks:
+      - proxy
+    restart: always
+
+  acme-companion:
+    image: nginxproxy/acme-companion
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - nginx_certs:/etc/nginx/certs
+      - nginx_vhost:/etc/nginx/vhost.d
+      - nginx_html:/usr/share/nginx/html
+      - acme_data:/etc/acme.sh
+    environment:
+      - DEFAULT_EMAIL=${LETSENCRYPT_EMAIL}
+    depends_on:
+      - nginx-proxy
+    networks:
+      - proxy
+    restart: always
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/denshees-backend/Dockerfile.monorepo
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - DATABASE_URL=${DATABASE_URL}
+      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - internal
+    restart: always
+
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/denshees-frontend/Dockerfile
+    environment:
+      - NODE_ENV=production
+      - BACKEND_URL=http://backend:8100
+      - DATABASE_URL=${DATABASE_URL}
+      - API_KEY=${API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DODO_PAYMENTS_API_KEY=${DODO_PAYMENTS_API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      # Server-side: used by /api/auth/google to verify Google ID tokens.
+      # (NEXT_PUBLIC_GOOGLE_CLIENT_ID is baked into the bundle at build time via
+      #  apps/denshees-frontend/.env.production — see deploy.yml.)
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - SUPPORT_NOTIFY_EMAILS=${SUPPORT_NOTIFY_EMAILS}
+      - AGENT_URL=http://agents:8050
+      # nginx-proxy picks these up automatically
+      - VIRTUAL_HOST=app.denshees.com
+      - VIRTUAL_PORT=3000
+      - LETSENCRYPT_HOST=app.denshees.com
+      - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
+    depends_on:
+      - backend
+    networks:
+      - proxy     # so nginx-proxy can reach it
+      - internal  # so it can reach backend + agents
+    restart: always
+
+  agents:
+    build:
+      context: .
+      dockerfile: apps/agents/Dockerfile
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - BACKEND_URL=http://frontend:3000
+      - LANGSMITH_API_KEY=${LANGSMITH_API_KEY:-}
+      - LANGSMITH_PROJECT=${LANGSMITH_PROJECT:-}
+      - LANGSMITH_TRACING=${LANGSMITH_TRACING:-false}
+      - DATABASE_URL=${DATABASE_URL}
+    depends_on:
+      - frontend
+    networks:
+      - internal
+    restart: always
+
+  redis:
+    image: redis:alpine
+    restart: always
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - internal
+
+networks:
+  proxy:
+    driver: bridge
+  internal:
+    driver: bridge
+
+volumes:
+  redis_data:
+  nginx_certs:
+  nginx_vhost:
+  nginx_html:
+  acme_data:

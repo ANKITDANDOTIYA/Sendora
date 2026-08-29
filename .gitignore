@@ -1,0 +1,54 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Local env files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+**/.env.development
+**/.env.production
+
+# Testing
+coverage
+
+# Turbo
+.turbo
+
+# Vercel
+.vercel
+
+# Build Outputs
+.next/
+out/
+build
+dist
+
+# Generated
+**/src/generated
+
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Misc
+.DS_Store
+*.pem
+
+/temp
+.worktrees
+.env.*
+CLAUDE.md
+
+# Local-only notes (personal backlog, learning notes, etc.)
+*.local.md
+
+# Local-only throwaway scripts (manual probes, one-off tests — never deployed)
+*.local.ts
