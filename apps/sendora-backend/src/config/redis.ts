@@ -25,7 +25,9 @@ for (const envPath of possibleEnvPaths) {
 const host = process.env.REDIS_HOST || "localhost";
 const port = parseInt(process.env.REDIS_PORT || "6379");
 
-console.log(`[Redis Config] Initializing Redis client (host=${host}, port=${port})`);
+console.log(
+  `[Redis Config] Initializing Redis client (host=${host}, port=${port})`,
+);
 
 const redisOptions: any = {
   host,

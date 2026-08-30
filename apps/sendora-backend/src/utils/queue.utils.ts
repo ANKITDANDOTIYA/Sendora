@@ -2,12 +2,14 @@
  * Queue utilities for email processing
  */
 
-import { Queue } from "bullmq"
-import { redis } from "../config/redis.js"
-import { log } from "./logger.js"
+import { Queue } from "bullmq";
+import { redis } from "../config/redis.js";
+import { log } from "./logger.js";
 
 // Create a queue for batch email processing
-export const batchEmailQueue = new Queue("batchEmailQueue", { connection: redis })
+export const batchEmailQueue = new Queue("batchEmailQueue", {
+  connection: redis,
+});
 
 /**
  * Adds a batch of email IDs to the processing queue
@@ -27,10 +29,10 @@ export async function queueEmailBatch(emailIds: string[]): Promise<string> {
       removeOnComplete: true,
       removeOnFail: 1000, // Keep the last 1000 failed jobs
     },
-  )
+  );
 
-  log("INFO", `Queued ${emailIds.length} emails for processing`, job.id)
-  return job.id
+  log("INFO", `Queued ${emailIds.length} emails for processing`, job.id);
+  return job.id;
 }
 
 /**
@@ -39,13 +41,13 @@ export async function queueEmailBatch(emailIds: string[]): Promise<string> {
  * @returns Job status
  */
 export async function getEmailBatchStatus(jobId: string): Promise<any> {
-  const job = await batchEmailQueue.getJob(jobId)
+  const job = await batchEmailQueue.getJob(jobId);
   if (!job) {
-    return { status: "not_found" }
+    return { status: "not_found" };
   }
 
-  const state = await job.getState()
-  const progress = job.progress
+  const state = await job.getState();
+  const progress = job.progress;
 
   return {
     id: job.id,
@@ -54,5 +56,5 @@ export async function getEmailBatchStatus(jobId: string): Promise<any> {
     data: job.data,
     attemptsMade: job.attemptsMade,
     timestamp: job.timestamp,
-  }
+  };
 }

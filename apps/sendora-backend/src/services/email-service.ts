@@ -142,10 +142,14 @@ export async function sendCampaignEmail(
     log("INFO", `Pitch found: ${pitch.id}`, txId);
 
     // Retrieve the list of available email credentials from the campaign
-    const campaignCreds: CampaignEmailCredential[] | undefined = (email as any).campaign?.campaignEmailCredentials;
+    const campaignCreds: CampaignEmailCredential[] | undefined = (email as any)
+      .campaign?.campaignEmailCredentials;
     const allCreds: CredentialRecord[] =
-      campaignCreds?.map((cec: CampaignEmailCredential) => cec.emailCredential).filter((cred: CredentialRecord): cred is CredentialRecord => Boolean(cred)) ??
-      [];
+      campaignCreds
+        ?.map((cec: CampaignEmailCredential) => cec.emailCredential)
+        .filter((cred: CredentialRecord): cred is CredentialRecord =>
+          Boolean(cred),
+        ) ?? [];
     if (!allCreds || !allCreds.length) {
       log("ERROR", `No email credentials available for campaign`, txId, {
         campaignId: email.campaign,
@@ -220,7 +224,9 @@ export async function sendCampaignEmail(
         `Using saved credential ${savedCredentialId} for follow-up email`,
         txId,
       );
-      credential = allCreds.find((cred: CredentialRecord) => cred.id === savedCredentialId);
+      credential = allCreds.find(
+        (cred: CredentialRecord) => cred.id === savedCredentialId,
+      );
 
       if (!credential) {
         log("ERROR", `Saved credential not found in campaign emails`, txId, {

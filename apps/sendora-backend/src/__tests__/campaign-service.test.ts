@@ -200,7 +200,10 @@ describe("updateEmailStatus", () => {
 
     // Lead is at stage 3 but the campaign was shrunk to maxStageCount=3
     // (last stage index 2). The >= check must complete it, not loop it.
-    const email = makeEmail({ stage: 3, campaign: { id: "c-1", maxStageCount: 3 } });
+    const email = makeEmail({
+      stage: 3,
+      campaign: { id: "c-1", maxStageCount: 3 },
+    });
 
     await updateEmailStatus(email);
 

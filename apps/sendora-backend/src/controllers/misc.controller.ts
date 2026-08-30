@@ -23,7 +23,7 @@ export async function handleHealthCheck(c: Context) {
         error:
           error instanceof Error ? error.message : "Unknown error occurred",
       },
-      500
+      500,
     );
   }
 }

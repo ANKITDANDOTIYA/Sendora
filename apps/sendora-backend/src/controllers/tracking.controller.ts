@@ -10,7 +10,7 @@ import { trackEmailOpen } from "../services/tracking.service.js";
 // 1x1 transparent GIF for tracking pixel
 const TRACKING_PIXEL = Buffer.from(
   "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
-  "base64"
+  "base64",
 );
 
 /**
@@ -26,7 +26,7 @@ export async function handleEmailOpen(c: Context): Promise<Response> {
   c.header("Content-Type", "image/gif");
   c.header(
     "Cache-Control",
-    "no-store, no-cache, must-revalidate, proxy-revalidate"
+    "no-store, no-cache, must-revalidate, proxy-revalidate",
   );
   c.header("Pragma", "no-cache");
   c.header("Expires", "0");

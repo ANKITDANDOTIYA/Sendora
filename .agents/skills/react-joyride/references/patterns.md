@@ -7,8 +7,8 @@ The library handles waiting for async operations. Use `before` hooks to prepare 
 This is the **preferred approach** over controlled mode for most async scenarios.
 
 ```tsx
-import { useState } from 'react';
-import { ACTIONS, STATUS, useJoyride } from 'react-joyride';
+import { useState } from "react";
+import { ACTIONS, STATUS, useJoyride } from "react-joyride";
 
 function Dashboard() {
   const [run, setRun] = useState(false);
@@ -19,27 +19,27 @@ function Dashboard() {
     run,
     steps: [
       {
-        target: '.nav-bar',
-        content: 'This is the navigation',
+        target: ".nav-bar",
+        content: "This is the navigation",
         skipBeacon: true,
       },
       {
-        target: '.dropdown-item', // Element inside the dropdown
-        content: 'This dropdown item is important',
+        target: ".dropdown-item", // Element inside the dropdown
+        content: "This dropdown item is important",
         skipBeacon: true,
         before: ({ action }) => {
           // Open dropdown before this step — runs on both forward and back navigation
           setIsMenuOpen(true);
-          return new Promise(resolve => setTimeout(resolve, 300));
+          return new Promise((resolve) => setTimeout(resolve, 300));
         },
       },
       {
-        target: '.main-content',
-        content: 'And here is the main content',
+        target: ".main-content",
+        content: "And here is the main content",
         before: ({ action }) => {
           // Close dropdown when moving to this step
           setIsMenuOpen(false);
-          return new Promise(resolve => setTimeout(resolve, 300));
+          return new Promise((resolve) => setTimeout(resolve, 300));
         },
       },
     ],
@@ -110,7 +110,7 @@ function Dashboard() {
 ## Custom Tooltip Component
 
 ```tsx
-import type { TooltipRenderProps } from 'react-joyride';
+import type { TooltipRenderProps } from "react-joyride";
 
 function CustomTooltip({
   backProps,
@@ -127,26 +127,36 @@ function CustomTooltip({
     <div
       {...tooltipProps}
       style={{
-        background: '#fff',
+        background: "#fff",
         borderRadius: 8,
         maxWidth: 400,
         padding: 20,
         width: step.width,
       }}
     >
-      {step.title && <h3 style={{ margin: '0 0 8px' }}>{step.title}</h3>}
+      {step.title && <h3 style={{ margin: "0 0 8px" }}>{step.title}</h3>}
       <div>{step.content}</div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
-        {step.buttons.includes('skip') && !isLastStep && (
-          <button {...skipProps} type="button">Skip</button>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginTop: 16,
+        }}
+      >
+        {step.buttons.includes("skip") && !isLastStep && (
+          <button {...skipProps} type="button">
+            Skip
+          </button>
         )}
-        <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+        <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
           {index > 0 && (
-            <button {...backProps} type="button">Back</button>
+            <button {...backProps} type="button">
+              Back
+            </button>
           )}
           <button {...primaryProps} type="button">
-            {isLastStep ? 'Done' : `Next (${index + 1}/${size})`}
+            {isLastStep ? "Done" : `Next (${index + 1}/${size})`}
           </button>
         </div>
       </div>
@@ -171,19 +181,22 @@ function App() {
 
   useEffect(() => {
     const unsubs = [
-      on('tour:start', (data) => {
-        console.log('Tour started');
+      on("tour:start", (data) => {
+        console.log("Tour started");
       }),
-      on('tooltip', (data) => {
-        analytics.track('step_viewed', { index: data.index });
+      on("tooltip", (data) => {
+        analytics.track("step_viewed", { index: data.index });
       }),
-      on('tour:end', (data) => {
-        const wasSkipped = data.status === 'skipped';
-        analytics.track('tour_ended', { skipped: wasSkipped, lastStep: data.index });
+      on("tour:end", (data) => {
+        const wasSkipped = data.status === "skipped";
+        analytics.track("tour_ended", {
+          skipped: wasSkipped,
+          lastStep: data.index,
+        });
       }),
     ];
 
-    return () => unsubs.forEach(unsub => unsub());
+    return () => unsubs.forEach((unsub) => unsub());
   }, [on]);
 
   return <div>{Tour}</div>;
@@ -199,33 +212,27 @@ function App() {
   useEffect(() => {
     // Build steps based on feature flags, user role, etc.
     const dynamicSteps: Step[] = [
-      { target: '.dashboard', content: 'Welcome to your dashboard' },
+      { target: ".dashboard", content: "Welcome to your dashboard" },
     ];
 
     if (user.isAdmin) {
       dynamicSteps.push({
-        target: '.admin-panel',
-        content: 'Admin controls are here',
+        target: ".admin-panel",
+        content: "Admin controls are here",
       });
     }
 
     if (featureFlags.newSearch) {
       dynamicSteps.push({
-        target: '.search-bar',
-        content: 'Try the new search',
+        target: ".search-bar",
+        content: "Try the new search",
       });
     }
 
     setSteps(dynamicSteps);
   }, [user, featureFlags]);
 
-  return (
-    <Joyride
-      run={steps.length > 0}
-      steps={steps}
-      continuous
-    />
-  );
+  return <Joyride run={steps.length > 0} steps={steps} continuous />;
 }
 ```
 
@@ -237,9 +244,9 @@ function App() {
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   const steps: Step[] = [
-    { target: sidebarRef, content: 'Navigation sidebar' },
-    { target: buttonRef, content: 'Click here to create' },
-    { target: '.css-selector', content: 'Mix refs with selectors' },
+    { target: sidebarRef, content: "Navigation sidebar" },
+    { target: buttonRef, content: "Click here to create" },
+    { target: ".css-selector", content: "Mix refs with selectors" },
   ];
 
   return (

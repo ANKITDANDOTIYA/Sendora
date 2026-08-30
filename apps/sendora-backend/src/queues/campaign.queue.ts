@@ -14,7 +14,7 @@ await campaignQueue.upsertJobScheduler(
       attempts: 5,
       removeOnFail: 1000,
     },
-  }
+  },
 );
 
 export default campaignQueue;

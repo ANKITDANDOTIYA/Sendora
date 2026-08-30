@@ -3,75 +3,80 @@
 ## Constants
 
 ### ACTIONS
+
 ```typescript
 const ACTIONS = {
-  INIT: 'init',
-  START: 'start',
-  STOP: 'stop',
-  RESET: 'reset',
-  PREV: 'prev',
-  NEXT: 'next',
-  GO: 'go',
-  CLOSE: 'close',
-  SKIP: 'skip',
-  UPDATE: 'update',
-  COMPLETE: 'complete',
+  INIT: "init",
+  START: "start",
+  STOP: "stop",
+  RESET: "reset",
+  PREV: "prev",
+  NEXT: "next",
+  GO: "go",
+  CLOSE: "close",
+  SKIP: "skip",
+  UPDATE: "update",
+  COMPLETE: "complete",
 } as const;
 ```
 
 ### EVENTS
+
 ```typescript
 const EVENTS = {
-  TOUR_START: 'tour:start',
-  STEP_BEFORE_HOOK: 'step:before_hook',
-  STEP_BEFORE: 'step:before',
-  SCROLL_START: 'scroll:start',
-  SCROLL_END: 'scroll:end',
-  BEACON: 'beacon',
-  TOOLTIP: 'tooltip',
-  STEP_AFTER: 'step:after',
-  STEP_AFTER_HOOK: 'step:after_hook',
-  TOUR_END: 'tour:end',
-  TOUR_STATUS: 'tour:status',
-  TARGET_NOT_FOUND: 'error:target_not_found',
-  ERROR: 'error',
+  TOUR_START: "tour:start",
+  STEP_BEFORE_HOOK: "step:before_hook",
+  STEP_BEFORE: "step:before",
+  SCROLL_START: "scroll:start",
+  SCROLL_END: "scroll:end",
+  BEACON: "beacon",
+  TOOLTIP: "tooltip",
+  STEP_AFTER: "step:after",
+  STEP_AFTER_HOOK: "step:after_hook",
+  TOUR_END: "tour:end",
+  TOUR_STATUS: "tour:status",
+  TARGET_NOT_FOUND: "error:target_not_found",
+  ERROR: "error",
 } as const;
 ```
 
 ### LIFECYCLE
+
 ```typescript
 const LIFECYCLE = {
-  INIT: 'init',
-  READY: 'ready',
-  BEACON_BEFORE: 'beacon_before',
-  BEACON: 'beacon',
-  TOOLTIP_BEFORE: 'tooltip_before',
-  TOOLTIP: 'tooltip',
-  COMPLETE: 'complete',
+  INIT: "init",
+  READY: "ready",
+  BEACON_BEFORE: "beacon_before",
+  BEACON: "beacon",
+  TOOLTIP_BEFORE: "tooltip_before",
+  TOOLTIP: "tooltip",
+  COMPLETE: "complete",
 } as const;
 ```
 
 ### STATUS
+
 ```typescript
 const STATUS = {
-  IDLE: 'idle',
-  READY: 'ready',
-  WAITING: 'waiting',
-  RUNNING: 'running',
-  PAUSED: 'paused',
-  SKIPPED: 'skipped',
-  FINISHED: 'finished',
+  IDLE: "idle",
+  READY: "ready",
+  WAITING: "waiting",
+  RUNNING: "running",
+  PAUSED: "paused",
+  SKIPPED: "skipped",
+  FINISHED: "finished",
 } as const;
 ```
 
 ### ORIGIN
+
 ```typescript
 const ORIGIN = {
-  BUTTON_CLOSE: 'button_close',
-  BUTTON_SKIP: 'button_skip',
-  BUTTON_PRIMARY: 'button_primary',
-  KEYBOARD: 'keyboard',
-  OVERLAY: 'overlay',
+  BUTTON_CLOSE: "button_close",
+  BUTTON_SKIP: "button_skip",
+  BUTTON_PRIMARY: "button_primary",
+  KEYBOARD: "keyboard",
+  OVERLAY: "overlay",
 } as const;
 ```
 
@@ -83,12 +88,12 @@ The full payload passed to `onEvent` and event subscribers:
 
 ```typescript
 type EventData = TourData & {
-  error: Error | null;         // Only for 'error' events
-  scroll: ScrollData | null;   // Only for 'scroll:start' / 'scroll:end'
+  error: Error | null; // Only for 'error' events
+  scroll: ScrollData | null; // Only for 'scroll:start' / 'scroll:end'
   scrolling: boolean;
-  type: Events;                // The event type (discriminator)
+  type: Events; // The event type (discriminator)
   waiting: boolean;
-}
+};
 ```
 
 ### TourData
@@ -118,11 +123,11 @@ type EventHandler = (data: EventData, controls: Controls) => void;
 
 ```typescript
 type ScrollData = {
-  duration: number;     // Scroll duration in ms
-  element: Element;     // Element being scrolled
-  initial: number;      // Scroll position before
-  target: number;       // Computed scroll destination
-}
+  duration: number; // Scroll duration in ms
+  element: Element; // Element being scrolled
+  initial: number; // Scroll position before
+  target: number; // Computed scroll destination
+};
 ```
 
 ## Event Flow (per step)
@@ -170,25 +175,31 @@ type TooltipRenderProps = {
 
   // Button props (spread on button elements)
   backProps: {
-    'aria-label': string;
-    'data-action': string;
+    "aria-label": string;
+    "data-action": string;
     onClick: MouseEventHandler<HTMLElement>;
     role: string;
     title: string;
   };
-  closeProps: { /* same shape */ };
-  primaryProps: { /* same shape */ };
-  skipProps: { /* same shape */ };
+  closeProps: {
+    /* same shape */
+  };
+  primaryProps: {
+    /* same shape */
+  };
+  skipProps: {
+    /* same shape */
+  };
 
   // Container props (spread on tooltip wrapper)
   tooltipProps: {
-    'aria-modal': boolean;
-    role: string;  // 'dialog'
+    "aria-modal": boolean;
+    role: string; // 'dialog'
   };
 
   // Tour controls
   controls: Controls;
-}
+};
 ```
 
 **Important**: Always spread `tooltipProps` on the root element and button props on their respective buttons. This ensures correct accessibility attributes and action handling.
@@ -202,7 +213,7 @@ type BeaconRenderProps = {
   isLastStep: boolean;
   size: number;
   step: StepMerged;
-}
+};
 ```
 
 Must render a `<span>` since it's placed inside a `<button>` wrapper.
@@ -211,10 +222,10 @@ Must render a `<span>` since it's placed inside a `<button>` wrapper.
 
 ```typescript
 type ArrowRenderProps = {
-  base: number;          // Arrow base width
-  placement: Placement;  // Computed placement
-  size: number;          // Arrow height
-}
+  base: number; // Arrow base width
+  placement: Placement; // Computed placement
+  size: number; // Arrow height
+};
 ```
 
 ### LoaderRenderProps
@@ -222,7 +233,7 @@ type ArrowRenderProps = {
 ```typescript
 type LoaderRenderProps = {
   step: StepMerged;
-}
+};
 ```
 
 Set `loaderComponent={null}` on Props or Step to disable the loader entirely.

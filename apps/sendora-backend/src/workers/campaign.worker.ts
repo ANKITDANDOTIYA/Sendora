@@ -7,7 +7,7 @@ const campaignWorker = new Worker(
   async () => {
     await processCampaignJob();
   },
-  { connection: redis }
+  { connection: redis },
 );
 
 export { campaignWorker };

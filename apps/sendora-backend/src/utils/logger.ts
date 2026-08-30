@@ -11,7 +11,7 @@ export function log(
   level: LogLevel,
   message: string,
   txId = "",
-  data: Record<string, any> | null = null
+  data: Record<string, any> | null = null,
 ): void {
   const timestamp = new Date().toISOString();
   const txInfo = txId ? `[${txId}]` : "";

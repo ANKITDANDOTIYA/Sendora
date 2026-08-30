@@ -61,8 +61,7 @@ async function processCampaignJob() {
       const stagePitch = email.campaign?.pitches?.find(
         (p: any) => p.stage === email.stage,
       );
-      const delay =
-        stagePitch?.delayDays ?? email.campaign?.daysInterval ?? 0;
+      const delay = stagePitch?.delayDays ?? email.campaign?.daysInterval ?? 0;
 
       return shouldSendToday(email.sentAt?.toISOString() ?? null, delay);
     });

@@ -78,7 +78,7 @@ export function normalizeEmailBody(html: string): string {
  */
 export function applyHoganPersonalization(
   pitch: PitchRecord,
-  data: Record<string, any>
+  data: Record<string, any>,
 ): { subject: string; body: string } {
   const txId = uuidv4().substring(0, 8);
   log("INFO", `Applying Hogan personalization`, txId);
@@ -90,7 +90,7 @@ export function applyHoganPersonalization(
         (_, variable, defaultValue) =>
           data[variable] !== undefined && data[variable] !== null
             ? `{{${variable}}}`
-            : defaultValue
+            : defaultValue,
       );
 
     const processedSubject = applyDefaults(pitch.subject);

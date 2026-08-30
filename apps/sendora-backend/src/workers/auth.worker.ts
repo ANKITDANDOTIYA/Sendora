@@ -7,7 +7,7 @@ const authWorker = new Worker(
   async () => {
     await processAuthJob();
   },
-  { connection: redis }
+  { connection: redis },
 );
 
 export { authWorker };
