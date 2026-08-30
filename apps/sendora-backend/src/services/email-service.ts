@@ -330,7 +330,8 @@ export async function sendCampaignEmail(
 
     // Add tracking pixel only if tracking is enabled
     if (isTrackingEnabled) {
-      const trackingUrl = `https://backend.sendora.com/tracking/open?id=${email.id}`;
+      const baseUrl = process.env.BACKEND_URL || "https://backend.sendora.com";
+      const trackingUrl = `${baseUrl.replace(/\/$/, "")}/tracking/open?id=${email.id}`;
       const trackingPixel = `<img src="${trackingUrl}" width="1" height="1" alt="" style="display:none;width:1px;height:1px;" />`;
 
       // Add the tracking pixel at the end of the email body

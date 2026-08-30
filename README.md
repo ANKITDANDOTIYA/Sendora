@@ -21,7 +21,7 @@
 - **Multi-Stage Sequences**: Build automated email campaigns with customized multi-stage follow-up delays.
 - **Spintax Variation Support**: Write dynamic email content with syntax like `{Hello|Hi|Hey}` to generate unique email variations and maximize deliverability.
 - **Personalization Engine**: Templating using Hogan.js for recipient custom fields (`{{name}}`, `{{company}}`, `{{role}}`).
-- **Timezone-Aware Delivery Windows**: Gate email dispatches to recipient or campaign timeframes (e.g., `MORNING`, `EVENING`, `NIGHT`, `MIDNIGHT`) with automatic timezone calculation.
+- **Timezone-Aware Delivery Windows**: Gate email dispatches to recipient or campaign timeframes (`MORNING`, `EVENING`, `NIGHT`, `MIDNIGHT`) with automatic timezone calculation.
 
 ### 📬 Sending Account & Deliverability Management
 
@@ -50,7 +50,7 @@
 ## 🖥️ Screenshots / Demo
 
 > [!NOTE]  
-> Sendora is currently configured for self-hosted and local deployments. A public cloud demo instance will be coming soon.
+> Sendora is designed for cloud (Vercel + Render + Neon) and self-hosted deployments.
 
 ![Sendora App Interface](intro.png)
 
@@ -63,17 +63,17 @@ Sendora is built as a high-performance monorepo using **pnpm workspaces** and **
 ```mermaid
 flowchart TD
     subgraph Client Layer
-        A[Next.js 14 Frontend\nApp Router + SWR + Tailwind]
+        A[Next.js 14 Frontend\nApp Router + SWR + Tailwind\nDeployed on Vercel]
     end
 
     subgraph API & Microservices Layer
-        B[Hono API Server\nApps/sendora-backend]
+        B[Hono API Server\nApps/sendora-backend\nDeployed on Render]
         C[LangGraph AI Service\nApps/agents - Python]
     end
 
     subgraph Data & Queue Layer
-        D[(PostgreSQL Database\nPrisma ORM 7)]
-        E[(Redis Cache & Queue\nBullMQ Engine)]
+        D[(PostgreSQL Database\nNeon Serverless / Prisma ORM 7)]
+        E[(Redis Cache & Queue\nRender Redis / Upstash / BullMQ)]
     end
 
     subgraph Mail Execution & Delivery
@@ -91,6 +91,75 @@ flowchart TD
     H -->|Replies / Bounces| F
     F -->|Update Status| D
 ```
+
+---
+
+## 🚀 Production Deployment Guide
+
+Sendora is designed for seamless production deployment using the following architecture:
+
+- **Frontend**: Vercel (Next.js 14 App Router)
+- **Backend API**: Render (Node.js Hono Web Service)
+- **Database**: Neon (PostgreSQL Database)
+- **Job Queue**: Render Redis or Upstash Redis (BullMQ Engine)
+- **Email Delivery**: SMTP (Gmail App Passwords, Custom SMTP, SES, etc.)
+
+---
+
+### 1. Database Setup — Neon PostgreSQL
+
+1. Create a new database project on [Neon.tech](https://neon.tech).
+2. Copy your PostgreSQL connection string (`DATABASE_URL`) from the Neon dashboard. Ensure `?sslmode=require` is appended to the connection string.
+3. Run schema migrations from your local workspace to initialize the production database tables:
+   ```bash
+   pnpm --filter @sendora/database exec prisma migrate deploy
+   ```
+
+---
+
+### 2. Backend Deployment — Render
+
+1. Create a **New Web Service** on [Render](https://render.com) connected to your GitHub repository.
+2. Configure the Render Web Service settings:
+   - **Root Directory**: `apps/sendora-backend`
+   - **Environment**: `Node`
+   - **Build Command**: `pnpm --filter @sendora/database build && pnpm --filter sendora-backend build`
+   - **Start Command**: `node dist/index.js`
+3. Add the required Environment Variables in Render:
+   - `DATABASE_URL`: Your Neon PostgreSQL connection string.
+   - `PORT`: Automatically assigned by Render (or default `8100`).
+   - `REDIS_URL`: Connection URL of your Render Redis or Upstash Redis instance (e.g. `rediss://default:password@host:6379`).
+   - `FRONTEND_URL`: Your Vercel frontend URL (e.g. `https://your-app.vercel.app`).
+   - `BACKEND_URL`: Your Render backend Web Service URL (e.g. `https://your-backend.onrender.com`).
+
+---
+
+### 3. Frontend Deployment — Vercel
+
+1. Create a **New Project** on [Vercel](https://vercel.com) connected to your GitHub repository.
+2. Select `apps/sendora-frontend` as the **Root Directory**.
+3. Vercel automatically detects Next.js. Use default settings:
+   - **Framework Preset**: Next.js
+   - **Root Directory**: `apps/sendora-frontend`
+   - **Build Command**: `pnpm --filter @sendora/database build && next build`
+4. Add the required Environment Variables in Vercel:
+   - `DATABASE_URL`: Your Neon PostgreSQL connection string.
+   - `BACKEND_URL`: Your Render backend URL (`https://your-backend.onrender.com`).
+   - `JWT_SECRET`: Secret key for JWT verification.
+   - `API_KEY`: Internal API key.
+   - `NEXT_PUBLIC_GOOGLE_CLIENT_ID`: Google OAuth 2.0 Client ID.
+   - `GOOGLE_CLIENT_ID`: Same Google OAuth 2.0 Client ID.
+   - `SMTP_USER`: Default system SMTP sender address.
+   - `SMTP_PASS`: Default system SMTP password.
+   - `SUPPORT_NOTIFY_EMAILS`: Email address to receive support notifications (`ankit.dandotiya.05@gmail.com`).
+
+---
+
+### 4. Campaign Scheduler & Worker Compatibility
+
+- Campaign email dispatches and follow-up sequences are managed by **BullMQ queues** running inside the Render backend process.
+- The `campaignQueue` schedules hourly campaign checks (`0 * * * *`). It calculates timezone delivery windows (`MORNING`, `EVENING`, `NIGHT`, `MIDNIGHT`), active days, stage delays (`delayDays`), and enqueues lead email batches.
+- **24/7 Cloud Execution**: Because the worker runs as part of the Render Web Service process connected to Redis, campaigns process automatically 24/7 in the cloud without requiring local machine execution.
 
 ---
 
@@ -145,7 +214,7 @@ sendora/
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Local Development Setup
 
 ### Prerequisites
 
@@ -153,7 +222,7 @@ Ensure you have the following installed on your machine:
 
 - **Node.js**: `>= 18.0.0`
 - **pnpm**: `>= 9.0.0`
-- **PostgreSQL**: Local database instance or cloud database (e.g., [Neon](https://neon.tech), [Supabase](https://supabase.com))
+- **PostgreSQL**: Local database instance or cloud database (e.g., [Neon](https://neon.tech))
 - **Redis**: Local server or Docker container
 
 ---
@@ -170,17 +239,10 @@ pnpm install
 
 ### 2. Configure Environment Files
 
-You can use the provided setup script to automatically copy `.env.example` templates to `.env`:
+Run the setup script to copy `.env.example` templates to `.env`:
 
 ```bash
 bash scripts/setup.sh
-```
-
-Alternatively, copy the environment files manually:
-
-```bash
-cp apps/sendora-backend/.env.example apps/sendora-backend/.env
-cp apps/sendora-frontend/.env.example apps/sendora-frontend/.env
 ```
 
 ---
@@ -209,13 +271,6 @@ This starts:
 - **Frontend App**: `http://localhost:3000`
 - **Backend API**: `http://localhost:8100`
 
-To run applications individually:
-
-```bash
-pnpm --filter sendora-frontend dev   # Frontend only
-pnpm --filter sendora-backend dev    # Backend only
-```
-
 ---
 
 ## 🔐 Environment Variables
@@ -223,40 +278,26 @@ pnpm --filter sendora-backend dev    # Backend only
 ### Backend Configuration (`apps/sendora-backend/.env`)
 
 ```env
-# Server Port
 PORT=8100
-
-# Redis Configuration (BullMQ queues)
+BACKEND_URL=http://localhost:8100
+FRONTEND_URL=http://localhost:3000
 REDIS_HOST=localhost
 REDIS_PORT=6379
-
-# PostgreSQL Database Connection
 DATABASE_URL="postgresql://user:password@localhost:5432/sendora?sslmode=require"
 ```
 
 ### Frontend Configuration (`apps/sendora-frontend/.env`)
 
 ```env
-# Authentication & Security
 JWT_SECRET=your_jwt_secret_key_here
 API_KEY=your_internal_api_key
-
-# Google OAuth 2.0
 NEXT_PUBLIC_GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
 GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
-
-# PostgreSQL Database Connection
 DATABASE_URL="postgresql://user:password@localhost:5432/sendora?sslmode=require"
-
-# OpenAI API Key (AI features)
 OPENAI_API_KEY=your_openai_api_key
-
-# Default System SMTP Credentials
 SMTP_USER=your_email@gmail.com
 SMTP_PASS=your_gmail_app_password
 SUPPORT_NOTIFY_EMAILS=ankit.dandotiya.05@gmail.com
-
-# Service Endpoints
 BACKEND_URL=http://localhost:8100
 AGENT_URL=http://localhost:8000
 ```
@@ -266,9 +307,6 @@ AGENT_URL=http://localhost:8000
 ## 🐳 Docker Deployment
 
 To run Sendora via Docker Compose:
-
-1. Ensure `.env` files exist in both `apps/sendora-backend` and `apps/sendora-frontend`.
-2. Launch the services:
 
 ```bash
 docker compose up --build
