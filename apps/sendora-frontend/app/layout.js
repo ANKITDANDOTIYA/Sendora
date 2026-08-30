@@ -10,7 +10,7 @@ const dmSans = DM_Sans({
 });
 
 export const metadata = {
-  title: "Sendora — Email Marketing & Campaign Automation Platform",
+  title: "Sendora",
   description: "Sendora is an email marketing and campaign management platform.",
 };
 
