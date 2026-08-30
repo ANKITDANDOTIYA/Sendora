@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for sharing an idea to make Denshees better!
+        Thanks for sharing an idea to make Sendora better!
   - type: checkboxes
     id: preflight
     attributes:
@@ -18,7 +18,7 @@ body:
     id: area
     attributes:
       label: Affected area
-      description: Which part of Denshees would this touch?
+      description: Which part of Sendora would this touch?
       options:
         - Frontend (Next.js UI / API routes)
         - Backend (Hono + BullMQ workers)

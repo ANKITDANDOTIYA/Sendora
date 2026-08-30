@@ -34,7 +34,7 @@ services:
   backend:
     build:
       context: .
-      dockerfile: apps/denshees-backend/Dockerfile.monorepo
+      dockerfile: apps/sendora-backend/Dockerfile.monorepo
     environment:
       - NODE_ENV=production
       - REDIS_HOST=redis
@@ -51,7 +51,7 @@ services:
   frontend:
     build:
       context: .
-      dockerfile: apps/denshees-frontend/Dockerfile
+      dockerfile: apps/sendora-frontend/Dockerfile
     environment:
       - NODE_ENV=production
       - BACKEND_URL=http://backend:8100
@@ -62,16 +62,16 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       # Server-side: used by /api/auth/google to verify Google ID tokens.
       # (NEXT_PUBLIC_GOOGLE_CLIENT_ID is baked into the bundle at build time via
-      #  apps/denshees-frontend/.env.production — see deploy.yml.)
+      #  apps/sendora-frontend/.env.production — see deploy.yml.)
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - SMTP_USER=${SMTP_USER}
       - SMTP_PASS=${SMTP_PASS}
       - SUPPORT_NOTIFY_EMAILS=${SUPPORT_NOTIFY_EMAILS}
       - AGENT_URL=http://agents:8050
       # nginx-proxy picks these up automatically
-      - VIRTUAL_HOST=app.denshees.com
+      - VIRTUAL_HOST=app.sendora.com
       - VIRTUAL_PORT=3000
-      - LETSENCRYPT_HOST=app.denshees.com
+      - LETSENCRYPT_HOST=app.sendora.com
       - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
     depends_on:
       - backend
@@ -100,6 +100,8 @@ services:
   redis:
     image: redis:alpine
     restart: always
+    ports:
+      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:

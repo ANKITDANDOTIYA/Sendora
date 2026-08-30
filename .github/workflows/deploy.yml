@@ -26,7 +26,7 @@ jobs:
           script: |
             # Clone repo on first deploy, pull on subsequent ones
             if [ ! -d /app ]; then
-              git clone https://github.com/Webeasetech/denshees.git /app
+              git clone https://github.com/Webeasetech/sendora.git /app
             fi
 
             cd /app
@@ -51,7 +51,7 @@ jobs:
             EOF
 
             # Write frontend .env.production needed at build time
-            cat > apps/denshees-frontend/.env.production <<EOF
+            cat > apps/sendora-frontend/.env.production <<EOF
             API_KEY=${{ secrets.API_KEY }}
             OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
             DODO_PAYMENTS_API_KEY=${{ secrets.DODO_PAYMENTS_API_KEY }}

@@ -1,6 +1,6 @@
-# Denshees Agents
+# Sendora Agents
 
-AI agents built with [LangGraph](https://langchain-ai.github.io/langgraph/) to help Denshees users work faster.
+AI agents built with [LangGraph](https://langchain-ai.github.io/langgraph/) to help Sendora users work faster.
 
 ## Setup
 

@@ -50,7 +50,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Generate Prisma client
-        run: pnpm --filter @denshees/database build
+        run: pnpm --filter @sendora/database build
 
       - name: Lint
         run: pnpm lint
@@ -59,7 +59,7 @@ jobs:
         run: pnpm build
 
       - name: Backend tests
-        run: pnpm --filter denshees-backend test
+        run: pnpm --filter sendora-backend test
 
   agents:
     name: Lint & test (Python agents)

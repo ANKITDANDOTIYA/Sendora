@@ -1,4 +1,4 @@
-"""Tools for the Denshees agent — calls the Next.js backend APIs.
+"""Tools for the Sendora agent — calls the Next.js backend APIs.
 
 Every tool receives `auth_token` from the LangGraph RunnableConfig,
 which is the user's JWT token forwarded from the frontend.

@@ -3,7 +3,7 @@ set -e
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-echo "=== Denshees Project Setup ==="
+echo "=== Sendora Project Setup ==="
 echo ""
 
 # 1. Copy .env.example files to .env (if .env doesn't already exist)
@@ -21,8 +21,8 @@ copy_env() {
 }
 
 echo "--- Setting up environment files ---"
-copy_env "$ROOT_DIR/apps/denshees-frontend" "frontend"
-copy_env "$ROOT_DIR/apps/denshees-backend" "backend"
+copy_env "$ROOT_DIR/apps/sendora-frontend" "frontend"
+copy_env "$ROOT_DIR/apps/sendora-backend" "backend"
 echo ""
 
 # 2. Install dependencies
@@ -33,8 +33,8 @@ echo ""
 
 # 3. Generate Prisma client and run migrations
 echo "--- Running database migrations ---"
-pnpm --filter @denshees/database db:generate
-pnpm --filter @denshees/database db:migrate
+pnpm --filter @sendora/database db:generate
+pnpm --filter @sendora/database db:migrate
 echo ""
 
 echo "=== Setup complete! ==="

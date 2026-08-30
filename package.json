@@ -1,5 +1,5 @@
 {
-  "name": "denshees",
+  "name": "sendora",
   "private": true,
   "scripts": {
     "build": "turbo run build",

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 44" width="180" height="44" fill="none">
+  <!-- Brand Icon Badge -->
+  <rect x="2" y="2" width="40" height="40" fill="#000000"/>
+  <!-- Envelope / Send Arrow inside badge -->
+  <path d="M12 15L22 23L32 15" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="square" stroke-linejoin="miter"/>
+  <path d="M12 15V29H32V15" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="square" stroke-linejoin="miter"/>
+
+  <!-- Wordmark "Sendora" -->
+  <text x="52" y="32" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="27" font-weight="800" letter-spacing="-0.75" fill="#000000">Sendora</text>
+</svg>

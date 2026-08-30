@@ -1,8 +1,8 @@
-# Denshees
+# Sendora
 
 Open-source cold email outreach platform with automated campaigns, CRM pipeline, lead management, and AI-powered features.
 
-![Denshees](intro.png)
+![Sendora](intro.png)
 
 ## Tech Stack
 
@@ -18,13 +18,13 @@ Open-source cold email outreach platform with automated campaigns, CRM pipeline,
 
 ```
 apps/
-  denshees-frontend/   → Next.js web app (port 3000)
-  denshees-backend/    → Hono API server (port 8100)
+  sendora-frontend/   → Next.js web app (port 3000)
+  sendora-backend/    → Hono API server (port 8100)
 packages/
-  database/            → Prisma schema & generated client (@denshees/database)
-  eslint-config/       → Shared ESLint configs
-  typescript-config/   → Shared tsconfig
-  ui/                  → Shared UI components
+  database/           → Prisma schema & generated client (@sendora/database)
+  eslint-config/      → Shared ESLint configs
+  typescript-config/  → Shared tsconfig
+  ui/                 → Shared UI components
 ```
 
 ## Prerequisites
@@ -39,8 +39,8 @@ packages/
 ### 1. Clone & install
 
 ```sh
-git clone https://github.com/your-username/denshees.git
-cd denshees
+git clone https://github.com/your-username/sendora.git
+cd sendora
 pnpm install
 ```
 
@@ -54,7 +54,7 @@ bash scripts/setup.sh
 
 Then fill in the values:
 
-**`apps/denshees-backend/.env`**
+**`apps/sendora-backend/.env`**
 | Variable | Description |
 |----------|-------------|
 | `PORT` | Server port (default: `8100`) |
@@ -62,7 +62,7 @@ Then fill in the values:
 | `REDIS_PORT` | Redis port (default: `6379`) |
 | `DATABASE_URL` | PostgreSQL connection string |
 
-**`apps/denshees-frontend/.env`**
+**`apps/sendora-frontend/.env`**
 | Variable | Description |
 |----------|-------------|
 | `API_KEY` | Internal API key for backend auth |
@@ -78,7 +78,7 @@ Then fill in the values:
 
 ### Google Sign-In setup
 
-Denshees supports Google Sign-In on the login and signup pages. To enable it for
+Sendora supports Google Sign-In on the login and signup pages. To enable it for
 your own deployment:
 
 1. In the [Google Cloud Console](https://console.cloud.google.com/apis/credentials),
@@ -87,14 +87,14 @@ your own deployment:
    - `http://localhost:3000` (local development)
    - `https://your-domain.com` (production)
 3. Copy the generated **Client ID** and set it as **both** of these in
-   `apps/denshees-frontend/.env`:
+   `apps/sendora-frontend/.env`:
    ```sh
    NEXT_PUBLIC_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
    GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
    ```
    `NEXT_PUBLIC_GOOGLE_CLIENT_ID` is read by the browser button and is baked into
    the build, so it must be present **before `pnpm build`** (in production it's
-   written to `apps/denshees-frontend/.env.production`). `GOOGLE_CLIENT_ID` is read
+   written to `apps/sendora-frontend/.env.production`). `GOOGLE_CLIENT_ID` is read
    server-side to verify Google ID tokens. The same value is safe in both — an
    OAuth *client ID* is public; no client secret is required for this flow.
 4. On the **OAuth consent screen**, add test users while in "Testing", or publish
@@ -106,8 +106,8 @@ your own deployment:
 ### 3. Set up the database
 
 ```sh
-pnpm --filter @denshees/database exec prisma generate
-pnpm --filter @denshees/database exec prisma migrate dev
+pnpm --filter @sendora/database exec prisma generate
+pnpm --filter @sendora/database exec prisma migrate dev
 ```
 
 ### 4. Start development
@@ -123,8 +123,8 @@ pnpm dev
 Or start individually:
 
 ```sh
-pnpm --filter denshees-frontend dev   # → http://localhost:3000
-pnpm --filter denshees-backend dev    # → http://localhost:8100
+pnpm --filter sendora-frontend dev   # → http://localhost:3000
+pnpm --filter sendora-backend dev    # → http://localhost:8100
 ```
 
 ## Docker

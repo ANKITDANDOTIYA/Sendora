@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from src.agent import graph
 from src.state import AgentState
 
-app = FastAPI(title="Denshees Agents", version="0.1.0")
+app = FastAPI(title="Sendora Agents", version="0.1.0")
 
 
 class ChatRequest(BaseModel):

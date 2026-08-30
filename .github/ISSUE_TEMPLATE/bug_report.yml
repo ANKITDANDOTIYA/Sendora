@@ -20,7 +20,7 @@ body:
     id: area
     attributes:
       label: Affected area
-      description: Which part of Denshees is affected?
+      description: Which part of Sendora is affected?
       options:
         - Frontend (Next.js UI / API routes)
         - Backend (Hono + BullMQ workers)

@@ -1,7 +1,7 @@
 [project]
-name = "denshees-agents"
+name = "sendora-agents"
 version = "0.1.0"
-description = "AI agents for Denshees – built with LangGraph"
+description = "AI agents for Sendora – built with LangGraph"
 requires-python = ">=3.11"
 dependencies = [
     "langgraph>=0.4",
