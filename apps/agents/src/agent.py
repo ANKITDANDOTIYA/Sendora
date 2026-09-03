@@ -5,6 +5,8 @@ The graph follows a Reason → Act → Observe loop:
 until the LLM produces a final response with no tool calls.
 """
 
+import os
+
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
@@ -104,7 +106,17 @@ tools = [
 
 @traceable(run_type="llm", name="get_llm")
 def _get_llm():
-    return ChatOpenAI(model="gpt-4o-mini", temperature=0).bind_tools(tools)
+    api_key = os.getenv("GEMINI_API_KEY")
+
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY is not configured")
+
+    return ChatOpenAI(
+        model="gemini-2.5-flash",
+        api_key=api_key,
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        temperature=0,
+    ).bind_tools(tools)
 
 
 # -- Nodes -------------------------------------------------------------------
