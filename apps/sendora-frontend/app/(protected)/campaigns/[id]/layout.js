@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import StatusChip from "@/components/ui/status-chip";
 import useCampaignStore from "@/store/campaign.store";
 import fetcher from "@/lib/fetcher";
-import { patch } from "@/lib/apis";
+import { patch, post } from "@/lib/apis";
 import {
   Tooltip,
   TooltipContent,
@@ -32,6 +32,40 @@ export default function CampaignLayout({ children }) {
   const { currentCampaign, setCurrentCampaign } = useCampaignStore();
 
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [isTriggeringTest, setIsTriggeringTest] = useState(false);
+
+  // Trigger manual test run for current campaign using standard authenticated API helper
+  const handleSendTestEmail = async () => {
+    if (isTriggeringTest || !currentCampaign) return;
+
+    setIsTriggeringTest(true);
+    try {
+      const data = await post(`/api/campaign/${campaignId}/trigger`, {
+        arg: {},
+      });
+
+      if (data && data.success) {
+        toast.success(data.details || "Test email batch queued successfully!");
+        mutate();
+      } else {
+        toast.error(
+          `Cannot send test email: ${
+            data?.details || data?.reason || "Failed to trigger test email."
+          }`,
+        );
+      }
+    } catch (err) {
+      const errMsg =
+        err.response?.data?.details ||
+        err.response?.data?.reason ||
+        err.message;
+      toast.error(`Cannot send test email: ${errMsg}`);
+    } finally {
+      setIsTriggeringTest(false);
+    }
+  };
+
+
 
   // Fetch campaign data using SWR
   const {
@@ -176,7 +210,18 @@ export default function CampaignLayout({ children }) {
             </div>
 
             {!isLoading && currentCampaign && (
-              <div className="shrink-0">
+              <div className="shrink-0 flex items-center gap-2 flex-wrap">
+                <Button
+                  onClick={handleSendTestEmail}
+                  disabled={isTriggeringTest || isLoading}
+                  size="sm"
+                  variant="outline"
+                  className="w-full md:w-auto border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
+                  title="Manually trigger test email batch queue for this campaign"
+                >
+                  {isTriggeringTest ? "Triggering..." : "Send Test Email"}
+                </Button>
+
                 {!hasEmails && currentCampaign.status !== "RUNNING" ? (
                   <TooltipProvider>
                     <Tooltip>
