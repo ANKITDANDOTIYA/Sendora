@@ -234,4 +234,176 @@ function daysPassed(isoDateString: string) {
   return Math.floor((Date.now() - pastDate.getTime()) / msPerDay);
 }
 
-export { processCampaignJob };
+/**
+ * Processes a single campaign for test / manual triggering.
+ * Validates ownership, status, SMTP credentials, timezone, delivery window,
+ * user credits, and active days before enqueuing pending emails.
+ */
+async function processSingleCampaignJob(
+  campaignId: string,
+  userId?: string,
+) {
+  console.log(`[TEST TRIGGER] Campaign triggered for campaignId: ${campaignId}`);
+
+  try {
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: campaignId, deleted: false },
+      include: {
+        user: true,
+        campaignEmailCredentials: { include: { emailCredential: true } },
+        pitches: true,
+      },
+    });
+
+    if (!campaign) {
+      return {
+        success: false,
+        reason: "Campaign not found",
+        details: "No active campaign exists with this ID.",
+      };
+    }
+
+    if (userId && campaign.userId !== userId) {
+      return {
+        success: false,
+        reason: "Unauthorized",
+        details: "Campaign does not belong to the authenticated user.",
+      };
+    }
+
+    if (campaign.status !== "RUNNING") {
+      return {
+        success: false,
+        reason: "Campaign not RUNNING",
+        details: `Campaign status is currently '${campaign.status}'. Please start the campaign first.`,
+      };
+    }
+
+    const creds = campaign.campaignEmailCredentials;
+    if (!creds || !Array.isArray(creds) || creds.length === 0) {
+      return {
+        success: false,
+        reason: "Missing SMTP credential",
+        details: "No email accounts / SMTP credentials are configured for this campaign.",
+      };
+    }
+
+    if (!campaign.user?.timezone) {
+      return {
+        success: false,
+        reason: "Missing timezone",
+        details: "User profile timezone is not set. Please set timezone in Account Settings.",
+      };
+    }
+
+    if (!campaign.emailDeliveryPeriod) {
+      return {
+        success: false,
+        reason: "Missing delivery period",
+        details: "Campaign delivery period is not configured.",
+      };
+    }
+
+    const currentTime = DateTime.now().setZone(campaign.user.timezone);
+    const withinPeriod = isWithinDeliveryPeriod(
+      currentTime,
+      campaign.emailDeliveryPeriod,
+    );
+    if (!withinPeriod) {
+      return {
+        success: false,
+        reason: "Outside delivery window",
+        details: `Current time in user timezone (${currentTime.toFormat(
+          "HH:mm",
+        )}) is outside delivery period '${campaign.emailDeliveryPeriod}'.`,
+      };
+    }
+
+    const availableCredits = (campaign.user?.credits ?? 0) > 0;
+    if (!availableCredits) {
+      return {
+        success: false,
+        reason: "No credits",
+        details: `User has insufficient credits (${campaign.user?.credits ?? 0}).`,
+      };
+    }
+
+    const isActiveDay = isCampaignActiveToday(campaign, currentTime);
+    if (!isActiveDay) {
+      return {
+        success: false,
+        reason: "No active day",
+        details: `Today (${currentTime.weekdayLong}) is not an active day for this campaign.`,
+      };
+    }
+
+    const campaignEmails = await prisma.campaignEmail.findMany({
+      where: {
+        campaignId: campaignId,
+        status: { in: ["PENDING", "RUNNING"] },
+        NOT: [{ status: "REPLIED" }, { status: "BOUNCED" }],
+      },
+      include: { campaign: { include: { pitches: true } } },
+      orderBy: { stage: "asc" },
+    });
+
+    if (campaignEmails.length === 0) {
+      return {
+        success: false,
+        reason: "No pending emails",
+        details: "There are no pending or running emails in this campaign.",
+      };
+    }
+
+    const validEmails = campaignEmails.filter((email: any) => {
+      if (email.stage === 0) return true;
+
+      const stagePitch = email.campaign?.pitches?.find(
+        (p: any) => p.stage === email.stage,
+      );
+      const delay = stagePitch?.delayDays ?? email.campaign?.daysInterval ?? 0;
+
+      return shouldSendToday(email.sentAt?.toISOString() ?? null, delay);
+    });
+
+    let emailIds = validEmails.map((email: any) => email.id);
+    if (emailIds.length === 0) {
+      return {
+        success: false,
+        reason: "Send delay constraint",
+        details: "Pending emails for follow-up stages are waiting for their send delay interval.",
+      };
+    }
+
+    const alreadyEnqueuedIds = await getEnqueuedEmailIds();
+    emailIds = emailIds.filter((id: any) => !alreadyEnqueuedIds.has(id));
+
+    if (emailIds.length === 0) {
+      return {
+        success: false,
+        reason: "Already enqueued",
+        details: "All eligible emails for this campaign are already queued in Redis.",
+      };
+    }
+
+    console.log(`[TEST TRIGGER] Eligible emails found: ${emailIds.length}`);
+    console.log(`[TEST TRIGGER] Batch queued for ${emailIds.length} emails`);
+
+    await enqueueEmailBatches(emailIds);
+
+    return {
+      success: true,
+      enqueuedCount: emailIds.length,
+      emailIds,
+      details: `Successfully queued ${emailIds.length} email(s) for test processing.`,
+    };
+  } catch (error: any) {
+    console.error(`[TEST TRIGGER] Error processing single campaign ${campaignId}:`, error);
+    return {
+      success: false,
+      reason: "Execution error",
+      details: error.message || "Failed to process campaign job.",
+    };
+  }
+}
+export { processCampaignJob, processSingleCampaignJob };

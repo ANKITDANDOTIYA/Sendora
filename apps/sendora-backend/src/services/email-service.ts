@@ -415,7 +415,7 @@ export async function sendCampaignEmail(
     }
 
     // Log the mail options for debugging (excluding sensitive content)
-    log("INFO", `Sending email`, txId, {
+    log("INFO", "[EMAIL] Sending...", txId, {
       from: fromAddress,
       to: maskedEmail,
       subject: mailOptions.subject,
@@ -424,6 +424,7 @@ export async function sendCampaignEmail(
         references: mailOptions.references,
       },
     });
+    console.log("[EMAIL] Sending...");
 
     try {
       log("INFO", `Calling nodemailer sendMail`, txId);
@@ -431,13 +432,16 @@ export async function sendCampaignEmail(
       const { messageId } = await transporter.sendMail(mailOptions);
       const sendDuration = Date.now() - sendStartTime;
 
-      log("INFO", `Email sent successfully`, txId, {
+      log("INFO", "[EMAIL] SMTP send successful", txId, {
         messageId,
         sendDuration: `${sendDuration}ms`,
       });
+      console.log("[EMAIL] SMTP send successful", messageId);
 
-      log("INFO", `Updating email status`, txId);
+      log("INFO", "[EMAIL] Status updated", txId);
+      console.log("[EMAIL] Status updated");
       await updateEmailStatus(email);
+
 
       // Create campaign message record
       await createCampaignMessage(email, pitch, messageId, body, txId);

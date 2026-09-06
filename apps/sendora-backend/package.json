@@ -21,7 +21,7 @@
     "hono": "^4.6.20",
     "html-to-text": "^9.0.5",
     "imapflow": "^1.2.16",
-    "ioredis": "^5.4.2",
+    "ioredis": "5.9.3",
     "luxon": "^3.5.0",
     "mailparser": "^3.9.4",
     "nodemailer": "^6.10.0",

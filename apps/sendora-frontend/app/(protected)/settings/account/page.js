@@ -44,10 +44,12 @@ function AccountSettings() {
     formState: { errors },
     reset,
     setValue,
+    watch,
   } = useForm({
     defaultValues: {
       name: "",
       username: "",
+      timezone: "",
       millionVerifierApiKey: "",
     },
   });
@@ -82,6 +84,11 @@ function AccountSettings() {
       setValue("name", userData.name || "");
       setValue("username", userData.username || "");
       setValue("millionVerifierApiKey", userData.millionVerifierApiKey || "");
+      const detectedTz =
+        typeof Intl !== "undefined" && Intl.DateTimeFormat
+          ? Intl.DateTimeFormat().resolvedOptions().timeZone
+          : "UTC";
+      setValue("timezone", userData.timezone || detectedTz);
     }
   }, [userData, setValue]);
 
@@ -90,12 +97,43 @@ function AccountSettings() {
       await updateAccount({
         name: data.name,
         username: data.username,
+        timezone: data.timezone || null,
         millionVerifierApiKey: data.millionVerifierApiKey || null,
       });
     } catch (error) {
       console.error("Error updating account:", error);
     }
   };
+
+  const defaultTimezones = [
+    "Asia/Kolkata",
+    "America/New_York",
+    "America/Chicago",
+    "America/Denver",
+    "America/Los_Angeles",
+    "America/Sao_Paulo",
+    "Europe/London",
+    "Europe/Paris",
+    "Europe/Berlin",
+    "Europe/Moscow",
+    "Asia/Dubai",
+    "Asia/Singapore",
+    "Asia/Tokyo",
+    "Australia/Sydney",
+    "UTC",
+  ];
+  const currentTzVal = watch("timezone");
+  const timezoneOptions = Array.from(
+    new Set([
+      ...defaultTimezones,
+      ...(userData?.timezone ? [userData.timezone] : []),
+      ...(typeof Intl !== "undefined" && Intl.DateTimeFormat
+        ? [Intl.DateTimeFormat().resolvedOptions().timeZone]
+        : []),
+      ...(currentTzVal ? [currentTzVal] : []),
+    ]),
+  ).filter(Boolean);
+
 
   if (isLoading) {
     return (
@@ -184,7 +222,29 @@ function AccountSettings() {
           </div>
 
           <div className="space-y-2">
+            <Label htmlFor="timezone">Timezone</Label>
+            <select
+              id="timezone"
+              {...register("timezone", { required: "Timezone is required" })}
+              className="flex h-10 w-full rounded-none border border-black bg-white px-3 py-2 text-sm shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-black cursor-pointer"
+            >
+              {timezoneOptions.map((tz) => (
+                <option key={tz} value={tz}>
+                  {tz}
+                </option>
+              ))}
+            </select>
+            {errors.timezone && (
+              <p className="text-red-500 text-sm">{errors.timezone.message}</p>
+            )}
+            <p className="text-xs text-gray-500">
+              Used by campaign schedulers to evaluate local email delivery periods.
+            </p>
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="millionVerifierApiKey">
+
               MillionVerifier API Key
             </Label>
             <div className="relative">

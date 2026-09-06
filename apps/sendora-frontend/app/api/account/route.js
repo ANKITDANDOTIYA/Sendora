@@ -26,6 +26,7 @@ export async function GET(request) {
         updated: true,
         millionVerifierApiKey: true,
         password: true,
+        timezone: true,
       },
     });
 
@@ -67,6 +68,9 @@ export async function PATCH(request) {
     if (data.millionVerifierApiKey !== undefined) {
       updateData.millionVerifierApiKey = data.millionVerifierApiKey || null;
     }
+    if (data.timezone !== undefined) {
+      updateData.timezone = data.timezone;
+    }
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
@@ -80,6 +84,7 @@ export async function PATCH(request) {
         created: true,
         updated: true,
         millionVerifierApiKey: true,
+        timezone: true,
       },
     });
 
