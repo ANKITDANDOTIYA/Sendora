@@ -18,6 +18,20 @@ export async function POST(request) {
       );
     }
 
+    const host =
+      request.headers.get("x-forwarded-host") ||
+      request.headers.get("host");
+    const proto =
+      request.headers.get("x-forwarded-proto") ||
+      (host?.includes("localhost") ? "http" : "https");
+    const requestOrigin = host ? `${proto}://${host}` : "";
+    const frontendUrl =
+      process.env.FRONTEND_URL ||
+      process.env.NEXTAUTH_URL ||
+      request.nextUrl?.origin ||
+      requestOrigin ||
+      "http://localhost:3000";
+
     const res = await fetch(`${AGENT_URL}/chat/stream`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -25,6 +39,7 @@ export async function POST(request) {
         message,
         thread_id: thread_id || "default",
         auth_token: authToken,
+        frontend_url: frontendUrl,
       }),
     });
 

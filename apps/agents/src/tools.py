@@ -12,7 +12,31 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from langsmith import traceable
 
-BASE_URL = os.environ.get("BACKEND_URL", "http://localhost:3000")
+
+def _base_url(config: RunnableConfig | None = None) -> str:
+    """Resolve the Next.js API server base URL.
+
+    Priority:
+    1. `frontend_url` dynamically forwarded from the Next.js chat request
+    2. Explicit environment variables (FRONTEND_URL, APP_URL, NEXT_PUBLIC_APP_URL, NEXTAUTH_URL)
+    3. BACKEND_URL environment variable (fallback if explicitly pointed to Next.js)
+    4. Default http://localhost:3000
+    """
+    if config and isinstance(config, dict) and "configurable" in config:
+        frontend_url = config["configurable"].get("frontend_url")
+        if frontend_url and str(frontend_url).strip():
+            return str(frontend_url).strip().rstrip("/")
+
+    for var in ("FRONTEND_URL", "APP_URL", "NEXT_PUBLIC_APP_URL", "NEXTAUTH_URL"):
+        val = os.environ.get(var)
+        if val and val.strip():
+            return val.strip().rstrip("/")
+
+    val = os.environ.get("BACKEND_URL")
+    if val and val.strip():
+        return val.strip().rstrip("/")
+
+    return "http://localhost:3000"
 
 
 def _headers(config: RunnableConfig) -> dict:
@@ -20,28 +44,28 @@ def _headers(config: RunnableConfig) -> dict:
 
 
 async def _get(path: str, config: RunnableConfig, params: dict | None = None) -> dict:
-    async with httpx.AsyncClient(base_url=BASE_URL, timeout=30) as client:
+    async with httpx.AsyncClient(base_url=_base_url(config), timeout=30) as client:
         r = await client.get(path, headers=_headers(config), params=params)
         r.raise_for_status()
         return r.json()
 
 
 async def _post(path: str, config: RunnableConfig, body: dict) -> dict:
-    async with httpx.AsyncClient(base_url=BASE_URL, timeout=30) as client:
+    async with httpx.AsyncClient(base_url=_base_url(config), timeout=30) as client:
         r = await client.post(path, headers=_headers(config), json=body)
         r.raise_for_status()
         return r.json()
 
 
 async def _patch(path: str, config: RunnableConfig, body: dict, params: dict | None = None) -> dict:
-    async with httpx.AsyncClient(base_url=BASE_URL, timeout=30) as client:
+    async with httpx.AsyncClient(base_url=_base_url(config), timeout=30) as client:
         r = await client.patch(path, headers=_headers(config), json=body, params=params)
         r.raise_for_status()
         return r.json()
 
 
 async def _delete(path: str, config: RunnableConfig) -> dict:
-    async with httpx.AsyncClient(base_url=BASE_URL, timeout=30) as client:
+    async with httpx.AsyncClient(base_url=_base_url(config), timeout=30) as client:
         r = await client.delete(path, headers=_headers(config))
         r.raise_for_status()
         return r.json()
