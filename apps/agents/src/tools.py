@@ -12,6 +12,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from langsmith import traceable
 
+
 def _base_url(config: RunnableConfig | None = None) -> str:
     """Resolve the Next.js API server base URL.
 
