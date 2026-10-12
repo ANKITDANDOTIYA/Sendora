@@ -37,6 +37,10 @@ export async function enqueueEmailBatches(
       },
     );
 
+    if (!job.id) {
+  throw new Error("Failed to create BullMQ job");
+}
+
     // Add the email IDs to the tracking set
     batch.forEach((id) => enqueuedEmailIds.add(id));
 
