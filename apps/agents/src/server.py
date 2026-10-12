@@ -18,6 +18,7 @@ class ChatRequest(BaseModel):
     message: str
     thread_id: str = "default"
     auth_token: str
+    frontend_url: str | None = None
 
 
 # ── Streaming endpoint ──────────────────────────────────────
@@ -25,7 +26,13 @@ class ChatRequest(BaseModel):
 
 @app.post("/chat/stream")
 async def chat_stream(req: ChatRequest):
-    config = {"configurable": {"thread_id": req.thread_id, "auth_token": req.auth_token}}
+    config = {
+        "configurable": {
+            "thread_id": req.thread_id,
+            "auth_token": req.auth_token,
+            "frontend_url": req.frontend_url,
+        }
+    }
     input_state = AgentState(messages=[HumanMessage(content=req.message)])
 
     async def generate():
@@ -78,7 +85,13 @@ class ChatResponse(BaseModel):
 @app.post("/chat", response_model=ChatResponse)
 @traceable(name="chat_endpoint")
 async def chat(req: ChatRequest) -> ChatResponse:
-    config = {"configurable": {"thread_id": req.thread_id, "auth_token": req.auth_token}}
+    config = {
+        "configurable": {
+            "thread_id": req.thread_id,
+            "auth_token": req.auth_token,
+            "frontend_url": req.frontend_url,
+        }
+    }
     result = await graph.ainvoke(
         AgentState(messages=[HumanMessage(content=req.message)]),
         config=config,
