@@ -19,7 +19,7 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**", "packages/database/src/generated/**"]
+      "outputs": [".next/**", "!.next/cache/**", "dist/**", "src/generated/**"]
     },
     "lint": {
       "dependsOn": ["^lint"]
