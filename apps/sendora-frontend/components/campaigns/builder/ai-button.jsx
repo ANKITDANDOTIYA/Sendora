@@ -67,7 +67,10 @@ const AIButton = ({ text, updateText, setLoading }) => {
       toast.success("Text enhanced successfully");
       updateText(response.enhancedText);
     } catch (error) {
-      toast.error("Error enhancing text");
+      // Prefer the server's descriptive message over a generic toast
+      const serverMessage =
+        error?.response?.data?.error || error?.message || "Error enhancing text";
+      toast.error(serverMessage);
       console.error("AI enhancement error:", error);
     } finally {
       setLoading(false);
