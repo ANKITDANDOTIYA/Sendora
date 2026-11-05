@@ -39,5 +39,28 @@ export function getGeminiClient() {
   return _client;
 }
 
+/**
+ * Set of retired or shutdown Google Gemini models that must not be used.
+ */
+const RETIRED_MODELS = new Set([
+  "gemini-2.0-flash",
+  "gemini-2.0-flash-exp",
+  "gemini-2.5-flash",
+]);
+
+/**
+ * Returns the Gemini model to use, ensuring environment variables cannot
+ * accidentally override with a retired or shutdown model.
+ *
+ * @returns {string}
+ */
+export function resolveGeminiModel() {
+  const envModel = process.env.GEMINI_MODEL?.trim();
+  if (envModel && !RETIRED_MODELS.has(envModel)) {
+    return envModel;
+  }
+  return "gemini-3.8-flash";
+}
+
 /** Default model used for text-enhancement tasks. */
-export const GEMINI_MODEL = "gemini-2.0-flash";
+export const GEMINI_MODEL = resolveGeminiModel();

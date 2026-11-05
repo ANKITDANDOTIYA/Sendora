@@ -125,10 +125,9 @@ export async function POST(request) {
       );
     }
   } catch (aiError) {
-    // Categorise the error for the server log without leaking details to the client
+    // Categorise provider errors for server logs without leaking secrets or user prompts
     if (aiError.message?.includes("GEMINI_API_KEY")) {
-      // Configuration error – will be visible in server logs
-      console.error("[enhance] Configuration error:", aiError.message);
+      console.error("[enhance] Configuration error: GEMINI_API_KEY is missing or invalid");
       return NextResponse.json(
         { error: "AI service is not configured. Contact the administrator." },
         { status: 503 },
@@ -136,22 +135,36 @@ export async function POST(request) {
     }
 
     if (aiError.status === 401 || aiError.status === 403) {
-      console.error("[enhance] Gemini authentication failed – check GEMINI_API_KEY");
+      console.error(`[enhance] Gemini authentication failed (status=${aiError.status}) – check GEMINI_API_KEY`);
       return NextResponse.json(
         { error: "AI service authentication failed. Contact the administrator." },
         { status: 503 },
       );
     }
 
+    if (aiError.status === 404) {
+      console.error(
+        `[enhance] Gemini model or endpoint not found (status=404, model=${GEMINI_MODEL}):`,
+        aiError.message || "Model not found or retired",
+      );
+      return NextResponse.json(
+        { error: `The configured AI model (${GEMINI_MODEL}) is unavailable or retired.` },
+        { status: 502 },
+      );
+    }
+
     if (aiError.status === 429) {
-      console.error("[enhance] Gemini rate limit exceeded");
+      console.error("[enhance] Gemini rate limit exceeded (status=429):", aiError.message);
       return NextResponse.json(
         { error: "AI service is busy. Please wait a moment and try again." },
         { status: 429 },
       );
     }
 
-    console.error("[enhance] Unexpected AI error:", aiError.message ?? aiError);
+    console.error(
+      `[enhance] Unexpected AI error (status=${aiError.status || "N/A"}, model=${GEMINI_MODEL}, code=${aiError.code || "N/A"}):`,
+      aiError.message ?? aiError,
+    );
     return NextResponse.json(
       { error: "Failed to enhance text. Please try again." },
       { status: 500 },

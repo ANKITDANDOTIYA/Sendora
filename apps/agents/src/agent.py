@@ -104,6 +104,9 @@ tools = [
 ]
 
 
+RETIRED_MODELS = {"gemini-2.0-flash", "gemini-2.0-flash-exp", "gemini-2.5-flash"}
+
+
 @traceable(run_type="llm", name="get_llm")
 def _get_llm():
     api_key = os.getenv("GEMINI_API_KEY")
@@ -111,8 +114,12 @@ def _get_llm():
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is not configured")
 
+    model = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+    if model in RETIRED_MODELS:
+        model = "gemini-3.8-flash"
+
     return ChatOpenAI(
-        model="gemini-2.5-flash",
+        model=model,
         api_key=api_key,
         base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
         temperature=0,

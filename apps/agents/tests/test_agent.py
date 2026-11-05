@@ -91,6 +91,7 @@ class TestGetLLM:
 
     def test_succeeds_when_key_is_present(self, monkeypatch):
         monkeypatch.setenv("GEMINI_API_KEY", "fake-key-for-testing")
+        monkeypatch.delenv("GEMINI_MODEL", raising=False)
 
         import src.agent as agent_module
 
@@ -100,9 +101,27 @@ class TestGetLLM:
             mock_llm.bind_tools.return_value = mock_llm
             mock_llm_cls.return_value = mock_llm
 
-            # Reset module-level LLM cache if any
             result = agent_module._get_llm()
             assert result is not None
+            mock_llm_cls.assert_called_once()
+            _, kwargs = mock_llm_cls.call_args
+            assert kwargs.get("model") == "gemini-3.8-flash"
+
+    def test_overrides_retired_gemini_models(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "fake-key-for-testing")
+        monkeypatch.setenv("GEMINI_MODEL", "gemini-2.0-flash")
+
+        import src.agent as agent_module
+
+        with patch("src.agent.ChatOpenAI") as mock_llm_cls:
+            mock_llm = MagicMock()
+            mock_llm.bind_tools.return_value = mock_llm
+            mock_llm_cls.return_value = mock_llm
+
+            result = agent_module._get_llm()
+            assert result is not None
+            _, kwargs = mock_llm_cls.call_args
+            assert kwargs.get("model") == "gemini-3.8-flash"
 
 
 # ---------------------------------------------------------------------------

@@ -56,7 +56,7 @@ jest.mock("@/lib/gemini", () => ({
   getGeminiClient: jest.fn(() => ({
     chat: { completions: { create: mockCreate } },
   })),
-  GEMINI_MODEL: "gemini-2.0-flash",
+  GEMINI_MODEL: "gemini-3.8-flash",
 }));
 
 // ── Imports (after mock declarations) ────────────────────────────────────────
@@ -219,6 +219,15 @@ describe("POST /api/ai/enhance", () => {
     );
     expect(status).toBe(429);
     expect(body.error).toMatch(/busy/i);
+  });
+
+  it("returns 502 on Gemini 404 model retired error", async () => {
+    mockCreate.mockRejectedValueOnce(Object.assign(new Error("404 status code (no body)"), { status: 404 }));
+    const { status, body } = await unwrap(
+      POST(makeRequest({ text: "Hello", type: "GRAMMAR" })),
+    );
+    expect(status).toBe(502);
+    expect(body.error).toMatch(/unavailable or retired/i);
   });
 
   it("returns 500 on unexpected Gemini error", async () => {
