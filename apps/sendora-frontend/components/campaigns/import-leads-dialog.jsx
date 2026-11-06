@@ -22,6 +22,7 @@ import {
 import useSWRMutation from "swr/mutation";
 import { post } from "@/lib/apis";
 import { mutate } from "swr";
+import { revalidateCampaignLeads } from "@/lib/revalidate-leads";
 import { z } from "zod";
 import { toast } from "sonner";
 import Papa from "papaparse";
@@ -88,7 +89,7 @@ const EditableCell = ({ value, onChange }) => {
   );
 };
 
-const ImportLeadsDialog = ({ open = false, setOpen, campaign }) => {
+const ImportLeadsDialog = ({ open = false, setOpen, campaign, onSuccess }) => {
   const [data, setData] = useState([]);
   const [columns, setColumns] = useState(["name", "email"]);
   const [error, setError] = useState(null);
@@ -99,18 +100,32 @@ const ImportLeadsDialog = ({ open = false, setOpen, campaign }) => {
     "/api/contacts/import-file",
     post,
     {
-      onSuccess: () => {
+      onSuccess: (res) => {
         setOpen(false);
-        mutate(`/api/contacts/paginatedapi?campaign=${campaign}`);
-        toast.success(`${data.length} leads imported successfully`);
-        if (duplicateEmails.length > 0) {
-          toast(`Skipped ${duplicateEmails.length} duplicate(s).`, {
+        revalidateCampaignLeads(campaign);
+        const importedCount = res?.count ?? data.length;
+        if (importedCount > 0) {
+          toast.success(
+            `${importedCount} lead${importedCount === 1 ? "" : "s"} imported successfully`,
+          );
+        } else {
+          toast.info("No new leads imported");
+        }
+        const skippedCount =
+          (res?.duplicateCount ?? 0) + duplicateEmails.length;
+        if (skippedCount > 0) {
+          toast(`Skipped ${skippedCount} duplicate(s).`, {
             description: "Duplicate emails were not imported.",
           });
         }
+        onSuccess?.(res);
       },
-      onError: () => {
-        toast.error("Error importing leads");
+      onError: (err) => {
+        const msg =
+          err?.response?.data?.message ||
+          err?.message ||
+          "Error importing leads";
+        toast.error(msg);
       },
     },
   );
@@ -226,8 +241,8 @@ const ImportLeadsDialog = ({ open = false, setOpen, campaign }) => {
       await trigger(formData);
       setData([]);
       setColumns(["name", "email"]);
-    } catch (error) {
-      toast.error("Error importing data");
+    } catch {
+      // Error is caught and surfaced via useSWRMutation's onError callback
     }
   };
 

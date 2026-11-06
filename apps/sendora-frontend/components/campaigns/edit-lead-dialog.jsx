@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import useSWRMutation from "swr/mutation";
 import { patch } from "@/lib/apis";
 import { mutate } from "swr";
+import { revalidateCampaignLeads } from "@/lib/revalidate-leads";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Trash2Icon } from "mage-icons-react/bulk";
@@ -26,7 +27,13 @@ const leadSchema = z.object({
   email: z.string().email("Invalid email address"),
 });
 
-const EditLeadDialog = ({ open = false, setOpen, lead = null, campaign }) => {
+const EditLeadDialog = ({
+  open = false,
+  setOpen,
+  lead = null,
+  campaign,
+  onSuccess,
+}) => {
   const [leadData, setLeadData] = useState({
     name: "",
     email: "",
@@ -44,13 +51,18 @@ const EditLeadDialog = ({ open = false, setOpen, lead = null, campaign }) => {
     lead ? `/api/lead/update?lead=${lead.id}` : null,
     patch,
     {
-      onSuccess: () => {
+      onSuccess: (res) => {
         toast.success("Lead updated successfully");
-        mutate(`/api/contacts/paginatedapi?campaign=${campaign}`);
+        revalidateCampaignLeads(campaign);
+        onSuccess?.(res);
         setOpen(false);
       },
-      onError: () => {
-        toast.error("Failed to update lead");
+      onError: (err) => {
+        const msg =
+          err?.response?.data?.message ||
+          err?.message ||
+          "Failed to update lead";
+        toast.error(msg);
       },
     },
   );

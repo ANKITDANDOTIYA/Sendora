@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import useSWRMutation from "swr/mutation";
@@ -24,11 +24,20 @@ export default function CreateCampaignDialog({ children }) {
   const router = useRouter();
   // A modal dialog traps focus and blocks pointer events outside itself,
   // which would freeze the onboarding tour's tooltip. Non-modal while touring.
-  const { isTourActive } = useTour();
+  const { isTourActive, registerDialogControl } = useTour();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    registerDialogControl?.({
+      open: () => setOpen(true),
+      close: () => setOpen(false),
+      isOpen: () => open,
+    });
+    return () => registerDialogControl?.(null);
+  }, [registerDialogControl, open]);
 
   const { trigger } = useSWRMutation("/api/campaign/create", post, {
     onSuccess: () => {
