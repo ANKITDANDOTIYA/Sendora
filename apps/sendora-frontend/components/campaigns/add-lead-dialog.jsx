@@ -23,6 +23,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { PersonalizationForm } from "./personalization-form";
 import fetcher from "@/lib/fetcher";
 import instance from "@/lib/axios";
+import { revalidateCampaignLeads } from "@/lib/revalidate-leads";
 
 /**
  * Extract unique personalization variable names from pitch messages and subjects.
@@ -144,15 +145,21 @@ const AddLeadDialog = ({ open = false, setOpen, campaign, onSuccess }) => {
   console.log(pitchesData);
 
   const { trigger, isMutating } = useSWRMutation("/api/contacts/import", post, {
-    onSuccess: () => {
+    onSuccess: (res) => {
       const addedEmail = leadData.email;
       setOpen(false);
-      mutate(`/api/contacts/paginatedapi?campaign=${campaign}`);
+      revalidateCampaignLeads(campaign);
       toast.success("Lead added successfully");
-      onSuccess?.({ email: addedEmail });
+      onSuccess?.({ email: addedEmail, data: res });
+      setLeadData({ name: "", email: "" });
+      setPersonalization({});
     },
-    onError: () => {
-      toast.error("Error adding lead");
+    onError: (error) => {
+      const msg =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Error adding lead";
+      toast.error(msg);
     },
   });
 
@@ -181,15 +188,15 @@ const AddLeadDialog = ({ open = false, setOpen, campaign, onSuccess }) => {
         ],
         campaign,
       });
-
-      // Reset form
-      setLeadData({ name: "", email: "" });
-      setPersonalization({});
     } catch (error) {
       if (error instanceof z.ZodError) {
         setFormError(error.errors[0].message);
       } else {
-        setFormError("An error occurred. Please try again.");
+        const msg =
+          error?.response?.data?.message ||
+          error?.message ||
+          "An error occurred. Please try again.";
+        setFormError(msg);
       }
     }
   };

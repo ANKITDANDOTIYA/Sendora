@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useParams } from "next/navigation";
 import {
   UserPlusIcon,
@@ -27,6 +27,7 @@ import fetcher from "@/lib/fetcher";
 import { remove } from "@/lib/apis";
 import { buildLeadsQuery } from "@/lib/leads-query";
 import { DEFAULT_LEAD_STATUSES } from "@/lib/constants/lead-status";
+import { revalidateCampaignLeads } from "@/lib/revalidate-leads";
 import { DateTime } from "luxon";
 
 const DEFAULT_FILTERS = {
@@ -59,8 +60,14 @@ export default function CampaignLeadsPage() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
 
   // Fetch leads growth data
-  const { data: growthData } = useSWR(
+  const { data: growthData, mutate: mutateGrowth } = useSWR(
     campaignId ? `/api/contacts/leads-growth?campaign=${campaignId}` : null,
+    fetcher,
+  );
+
+  // Fetch company chips for the entire campaign
+  const { data: companyChips = [], mutate: mutateCompanies } = useSWR(
+    campaignId ? `/api/contacts/companies?campaign=${campaignId}` : null,
     fetcher,
   );
 
@@ -88,6 +95,21 @@ export default function CampaignLeadsPage() {
     },
   );
 
+  // Synchronize incoming SWR leads data to store
+  useEffect(() => {
+    if (leadsData) {
+      setLeadsData(leadsData);
+    }
+  }, [leadsData, setLeadsData]);
+
+  // Derive active display items directly from SWR leadsData with store fallback
+  const displayLeads = useMemo(
+    () => leadsData?.items ?? leads ?? [],
+    [leadsData?.items, leads],
+  );
+  const displayTotalLeads = leadsData?.totalItems ?? totalLeads ?? 0;
+  const displayTotalPages = leadsData?.totalPages ?? totalPages ?? 1;
+
   // Handle search
   const handleSearch = (e) => {
     e.preventDefault();
@@ -106,6 +128,28 @@ export default function CampaignLeadsPage() {
     setPage(page);
   };
 
+  // Refresh callback when leads are added, imported, or edited
+  const handleLeadsUpdated = useCallback(() => {
+    // Reset to first page and clear search if needed so newly added leads are immediately visible
+    setPage(1);
+    if (searchQuery) {
+      setSearch("");
+      setSearchQuery("");
+    }
+    mutate();
+    mutateGrowth?.();
+    mutateCompanies?.();
+    revalidateCampaignLeads(campaignId);
+  }, [
+    campaignId,
+    searchQuery,
+    setPage,
+    setSearchQuery,
+    mutate,
+    mutateGrowth,
+    mutateCompanies,
+  ]);
+
   // Setup mutation for deleting a lead
   const { trigger: deleteLead } = useSWRMutation(
     "/api/lead/delete/",
@@ -116,6 +160,9 @@ export default function CampaignLeadsPage() {
       onSuccess: () => {
         toast.success("Lead deleted successfully");
         mutate(); // Refresh the leads data
+        mutateGrowth?.();
+        mutateCompanies?.();
+        revalidateCampaignLeads(campaignId);
       },
       onError: () => {
         toast.error("Failed to delete lead");
@@ -132,14 +179,14 @@ export default function CampaignLeadsPage() {
   // Handle edit lead
   const handleEditLead = useCallback(
     (leadId) => {
-      // Find the lead data from the current leads
-      const leadToEdit = leads.find((lead) => lead.id === leadId);
+      // Find the lead data from displayLeads
+      const leadToEdit = displayLeads.find((lead) => lead.id === leadId);
       if (leadToEdit) {
         setSelectedLead(leadToEdit);
         setEditLeadDialogOpen(true);
       }
     },
-    [leads],
+    [displayLeads],
   );
 
   // Handle delete lead
@@ -154,15 +201,9 @@ export default function CampaignLeadsPage() {
     [deleteLead],
   );
 
-  // Fetch company chips for the entire campaign
-  const { data: companyChips = [] } = useSWR(
-    campaignId ? `/api/contacts/companies?campaign=${campaignId}` : null,
-    fetcher,
-  );
-
   // Format data for the table
   const formattedData = useMemo(() => {
-    return leads.map((lead) => ({
+    return displayLeads.map((lead) => ({
       id: lead.id,
       name: lead.name,
       email: lead.email,
@@ -180,7 +221,13 @@ export default function CampaignLeadsPage() {
         onDelete: handleDeleteLead,
       },
     }));
-  }, [leads, campaignId, handleViewTimeline, handleEditLead, handleDeleteLead]);
+  }, [
+    displayLeads,
+    campaignId,
+    handleViewTimeline,
+    handleEditLead,
+    handleDeleteLead,
+  ]);
 
   // Define columns
   const columns = useMemo(
@@ -313,7 +360,7 @@ export default function CampaignLeadsPage() {
         },
       },
     ],
-    [],
+    [currentCampaign?.isTrackingEnabled, currentCampaign?.maxStageCount],
   );
 
   return (
@@ -378,7 +425,7 @@ export default function CampaignLeadsPage() {
         <DataTable
           columns={columns}
           data={formattedData}
-          pageCount={totalPages}
+          pageCount={displayTotalPages}
           currentPage={currentPage}
           onPageChange={handlePageChange}
           isLoading={isLoading}
@@ -387,10 +434,11 @@ export default function CampaignLeadsPage() {
 
       {/* Summary */}
       <div className="text-sm text-gray-500">
-        {totalLeads > 0 && (
+        {displayTotalLeads > 0 && (
           <p>
-            Showing {Math.min((currentPage - 1) * 15 + 1, totalLeads)} to{" "}
-            {Math.min(currentPage * 15, totalLeads)} of {totalLeads} leads
+            Showing {Math.min((currentPage - 1) * 15 + 1, displayTotalLeads)} to{" "}
+            {Math.min(currentPage * 15, displayTotalLeads)} of {displayTotalLeads}{" "}
+            leads
           </p>
         )}
       </div>
@@ -400,6 +448,7 @@ export default function CampaignLeadsPage() {
         open={importDialogOpen}
         setOpen={setImportDialogOpen}
         campaign={campaignId}
+        onSuccess={handleLeadsUpdated}
       />
 
       {/* Add Lead Dialog */}
@@ -407,6 +456,7 @@ export default function CampaignLeadsPage() {
         open={addLeadDialogOpen}
         setOpen={setAddLeadDialogOpen}
         campaign={campaignId}
+        onSuccess={handleLeadsUpdated}
       />
 
       {/* Edit Lead Dialog */}
@@ -415,6 +465,7 @@ export default function CampaignLeadsPage() {
         setOpen={setEditLeadDialogOpen}
         lead={selectedLead}
         campaign={campaignId}
+        onSuccess={handleLeadsUpdated}
       />
     </div>
   );
