@@ -24,7 +24,8 @@ export default function CreateCampaignDialog({ children }) {
   const router = useRouter();
   // A modal dialog traps focus and blocks pointer events outside itself,
   // which would freeze the onboarding tour's tooltip. Non-modal while touring.
-  const { isTourActive, registerDialogControl } = useTour();
+  const { isTourActive, registerDialogControl, notifyCampaignCreated } =
+    useTour();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
@@ -61,6 +62,9 @@ export default function CreateCampaignDialog({ children }) {
 
       toast.success("Campaign created successfully!");
       setOpen(false);
+      if (isTourActive) {
+        notifyCampaignCreated?.();
+      }
       router.push(`/campaigns/${res.campaign?.id}`);
     } catch (error) {
       console.error("Failed to create campaign:", error);

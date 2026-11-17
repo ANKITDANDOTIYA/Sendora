@@ -19,6 +19,7 @@ export async function GET(request) {
         credits: true,
         aiCredits: true,
         isSetup: true,
+        tourCompleted: true,
         created: true,
         updated: true,
       },

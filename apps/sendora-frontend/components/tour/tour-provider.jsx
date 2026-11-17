@@ -27,6 +27,7 @@ const TourContext = createContext({
   restartTour: () => {},
   completeTour: () => {},
   registerDialogControl: () => {},
+  notifyCampaignCreated: () => {},
 });
 
 export const useTour = () => useContext(TourContext);
@@ -113,6 +114,26 @@ const joyrideStyles = {
   },
 };
 
+// Helper: Checks if the tour is completed or skipped for this user (DB flag or client localStorage)
+function isTourCompletedForUser(user) {
+  if (!user) return true;
+  if (user.tourCompleted) return true;
+  if (typeof window !== "undefined") {
+    try {
+      const userKey = user.id || user.email;
+      if (
+        userKey &&
+        localStorage.getItem(`sendora_tour_completed_${userKey}`) === "true"
+      ) {
+        return true;
+      }
+    } catch {
+      // localStorage may fail in restricted/private modes
+    }
+  }
+  return false;
+}
+
 export function TourProvider({ children }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -121,6 +142,18 @@ export function TourProvider({ children }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [showModal, setShowModal] = useState(false);
   const prevPathnameRef = useRef(pathname);
+
+  // Keep latest run state accessible without stale closures
+  const runRef = useRef(false);
+  useEffect(() => {
+    runRef.current = run;
+  }, [run]);
+
+  // Track if a new campaign was just created via the dialog during an active tour
+  const campaignCreatedDuringTourRef = useRef(false);
+  const notifyCampaignCreated = useCallback(() => {
+    campaignCreatedDuringTourRef.current = true;
+  }, []);
 
   // Ref keeps the latest stepIndex readable inside effects and callbacks without stale closures
   const stepIndexRef = useRef(0);
@@ -230,12 +263,26 @@ export function TourProvider({ children }) {
     [isOnCampaignDetail, ensureCreateDialogOpen],
   );
 
+  const markTourCompletedLocally = useCallback(() => {
+    updateUser({ tourCompleted: true });
+    if (typeof window !== "undefined" && user) {
+      try {
+        const userKey = user.id || user.email;
+        if (userKey) {
+          localStorage.setItem(`sendora_tour_completed_${userKey}`, "true");
+        }
+      } catch {
+        // ignore storage errors
+      }
+    }
+  }, [updateUser, user]);
+
   // Skip the full tour: immediate exit to dashboard, persist state, no blocking modal
   const skipTour = useCallback(() => {
     closeCreateDialog();
     setRun(false);
     setShowModal(false);
-    updateUser({ tourCompleted: true });
+    markTourCompletedLocally();
     if (token) {
       fetch("/api/auth/complete-tour", {
         method: "POST",
@@ -245,14 +292,14 @@ export function TourProvider({ children }) {
       );
     }
     router.push("/dashboard");
-  }, [closeCreateDialog, token, updateUser, router]);
+  }, [closeCreateDialog, token, markTourCompletedLocally, router]);
 
   // Complete the full tour at the end
   const completeTour = useCallback(() => {
     closeCreateDialog();
     setRun(false);
     setShowModal(true);
-    updateUser({ tourCompleted: true });
+    markTourCompletedLocally();
     if (token) {
       fetch("/api/auth/complete-tour", {
         method: "POST",
@@ -262,7 +309,7 @@ export function TourProvider({ children }) {
       );
     }
     router.push("/dashboard");
-  }, [closeCreateDialog, token, updateUser, router]);
+  }, [closeCreateDialog, token, markTourCompletedLocally, router]);
 
   // Advance to next step (or finish if at last step) — completely skippable, no validation
   const nextStep = useCallback(
@@ -326,13 +373,13 @@ export function TourProvider({ children }) {
     }, 800);
   }, [closeCreateDialog, router]);
 
-  // Start the tour once for users who haven't finished it (DB-backed flag).
+  // Start the tour once for newly logged in users who haven't finished it (DB-backed flag or localStorage).
   // `startedRef` is set when the timer fires — not when scheduled — so React
   // StrictMode's mount→cleanup→mount (which clears the pending timer) still
   // reschedules instead of latching the guard and killing the tour.
   const startedRef = useRef(false);
   useEffect(() => {
-    if (startedRef.current || !user || user.tourCompleted) return;
+    if (startedRef.current || !user || isTourCompletedForUser(user)) return;
     const t = setTimeout(() => {
       startedRef.current = true;
       router.push("/campaigns");
@@ -341,8 +388,9 @@ export function TourProvider({ children }) {
     return () => clearTimeout(t);
   }, [user, router]);
 
-  // Detect navigation from the campaigns list → /campaigns/[id] after the
-  // create dialog submits manually by the user
+  // Detect navigation from the campaigns list → /campaigns/[id] ONLY when
+  // the create dialog submits manually during an active tour.
+  // Clicking on any existing campaign or navigating around must NEVER trigger the tour.
   useEffect(() => {
     const prev = prevPathnameRef.current;
     prevPathnameRef.current = pathname;
@@ -351,16 +399,22 @@ export function TourProvider({ children }) {
     const wasOnCampaignsList = prev === "/campaigns";
 
     if (
+      !isTourCompletedForUser(user) &&
+      runRef.current &&
+      campaignCreatedDuringTourRef.current &&
       isNowOnCampaignDetail &&
       wasOnCampaignsList &&
       stepIndexRef.current <= CREATE_STEP
     ) {
+      campaignCreatedDuringTourRef.current = false;
       setTimeout(() => {
         setStepIndex(CREATE_STEP + 1);
         setRun(true);
       }, 800);
+    } else {
+      campaignCreatedDuringTourRef.current = false;
     }
-  }, [pathname]);
+  }, [pathname, user]);
 
   const handleEvent = useCallback(
     (data, controls) => {
@@ -440,6 +494,7 @@ export function TourProvider({ children }) {
         restartTour,
         completeTour,
         registerDialogControl,
+        notifyCampaignCreated,
       }}
     >
       {Tour}

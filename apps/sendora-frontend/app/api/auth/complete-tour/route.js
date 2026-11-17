@@ -12,7 +12,8 @@ export async function POST(request) {
   }
 
   try {
-    const decoded = jwtDecode(token);
+    const rawToken = token.startsWith("Bearer ") ? token.slice(7) : token;
+    const decoded = jwtDecode(rawToken);
 
     await prisma.user.update({
       where: { id: decoded.userId },

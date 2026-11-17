@@ -27,6 +27,7 @@ export async function GET(request) {
         millionVerifierApiKey: true,
         password: true,
         timezone: true,
+        tourCompleted: true,
       },
     });
 

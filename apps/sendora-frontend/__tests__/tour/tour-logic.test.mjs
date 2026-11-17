@@ -111,6 +111,36 @@ function createTourSimulation({ initialUser = { id: "u-1", tourCompleted: false 
     stepIndex = 0;
   };
 
+  let campaignCreatedDuringTour = false;
+
+  const notifyCampaignCreated = () => {
+    campaignCreatedDuringTour = true;
+  };
+
+  const navigateTo = (newPath) => {
+    const prev = currentPath;
+    currentPath = newPath;
+
+    const isNowOnCampaignDetail = /^\/campaigns\/[^/]+$/.test(newPath);
+    const wasOnCampaignsList = prev === "/campaigns";
+
+    // Replicate fixed TourProvider logic:
+    if (
+      !user.tourCompleted &&
+      run &&
+      campaignCreatedDuringTour &&
+      isNowOnCampaignDetail &&
+      wasOnCampaignsList &&
+      stepIndex <= CREATE_STEP
+    ) {
+      campaignCreatedDuringTour = false;
+      stepIndex = CREATE_STEP + 1;
+      run = true;
+    } else {
+      campaignCreatedDuringTour = false;
+    }
+  };
+
   return {
     getState: () => ({
       user,
@@ -129,6 +159,8 @@ function createTourSimulation({ initialUser = { id: "u-1", tourCompleted: false 
     skipStep,
     openCreateDialog,
     closeCreateDialog,
+    notifyCampaignCreated,
+    navigateTo,
   };
 }
 
@@ -282,5 +314,69 @@ function createTourSimulation({ initialUser = { id: "u-1", tourCompleted: false 
   console.log("✓ Scenario 7: Real form validation remains intact outside the tour passed.");
 }
 
-console.log("\nAll 7 test scenarios verified successfully!");
+// Scenario 8: Old user (tourCompleted: true) clicks on any campaign from /campaigns -> tour does NOT start
+{
+  const sim = createTourSimulation({ initialUser: { id: "old-user-1", tourCompleted: true } });
+  sim.navigateTo("/campaigns");
+  assert.strictEqual(sim.getState().run, false);
+
+  // User clicks on a campaign
+  sim.navigateTo("/campaigns/existing-campaign-456");
+  assert.strictEqual(sim.getState().run, false, "Tour must NOT start when old user clicks on a campaign");
+  assert.strictEqual(sim.getState().currentPath, "/campaigns/existing-campaign-456");
+
+  console.log("✓ Scenario 8: Old user clicks on any campaign (tour does NOT start) passed.");
+}
+
+// Scenario 9: User clicks on an existing campaign without active tour campaign creation -> tour does NOT start
+{
+  const sim = createTourSimulation({ initialUser: { id: "user-2", tourCompleted: false } });
+  sim.navigateTo("/campaigns");
+  assert.strictEqual(sim.getState().run, false);
+
+  // User clicks on existing campaign directly without creating via tour
+  sim.navigateTo("/campaigns/campaign-789");
+  assert.strictEqual(sim.getState().run, false, "Tour must NOT start simply by clicking an existing campaign");
+
+  console.log("✓ Scenario 9: Clicking an existing campaign without tour creation does NOT trigger tour passed.");
+}
+
+// Scenario 10: Newly logged in user actively in tour creates a campaign -> tour advances to campaign detail steps
+{
+  const sim = createTourSimulation({ initialUser: { id: "new-user-1", tourCompleted: false } });
+  sim.startTour();
+  assert.strictEqual(sim.getState().run, true);
+  assert.strictEqual(sim.getState().stepIndex, 0);
+
+  // Advances to Step 3 (dialog submit step)
+  sim.nextStep(0); // -> step 1
+  sim.nextStep(1); // -> step 2
+  sim.nextStep(2); // -> step 3
+  assert.strictEqual(sim.getState().stepIndex, 3);
+
+  // User submits create campaign form during active tour
+  sim.notifyCampaignCreated();
+  sim.navigateTo("/campaigns/newly-created-camp-1");
+
+  // Tour should transition to Step 4 (Leads tab) on the new campaign page
+  assert.strictEqual(sim.getState().run, true);
+  assert.strictEqual(sim.getState().stepIndex, 4);
+  assert.strictEqual(sim.getState().currentPath, "/campaigns/newly-created-camp-1");
+
+  // Completing the rest of the tour
+  for (let i = 4; i < TOTAL_STEPS; i++) {
+    sim.nextStep(i);
+  }
+  assert.strictEqual(sim.getState().run, false);
+  assert.strictEqual(sim.getState().user.tourCompleted, true);
+
+  // Subsequent clicks on campaigns by this now-completed user do NOT start tour
+  sim.navigateTo("/campaigns");
+  sim.navigateTo("/campaigns/other-camp-999");
+  assert.strictEqual(sim.getState().run, false);
+
+  console.log("✓ Scenario 10: Campaign created during active tour advances to detail tabs, and subsequent clicks never start tour passed.");
+}
+
+console.log("\nAll 10 test scenarios verified successfully!");
 
