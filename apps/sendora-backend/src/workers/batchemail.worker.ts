@@ -5,11 +5,12 @@ import { processEmailBatchJob } from "../jobs/batch-emails.js";
 const batchemailWorker = new Worker(
   "batchEmailQueue",
   async (job) => {
+    console.log(`[WORKER] Processing batch... Job ID: ${job.id}`);
     // Process the batch of emails
     const results = await processEmailBatchJob(job.data);
 
     console.log(
-      `Job ${job.id} completed. Processed ${results.length} emails. Waiting 1 minute before processing the next job...`,
+      `[WORKER] Job ${job.id} completed. Processed ${results.length} emails. Waiting 1 minute before processing the next job...`,
     );
 
     // Wait for 1 minute (60,000 ms) before processing the next job
@@ -20,11 +21,15 @@ const batchemailWorker = new Worker(
 
 // Add event handlers for better monitoring
 batchemailWorker.on("completed", (job) => {
-  console.log(`Job ${job.id} has completed successfully`);
+  console.log(`[WORKER] Job ${job.id} has completed successfully`);
 });
 
 batchemailWorker.on("failed", (job, err) => {
-  console.error(`Job ${job?.id} has failed with error: ${err.message}`);
+  console.error(`[WORKER] Job ${job?.id} has failed with error: ${err.message}`);
+});
+
+batchemailWorker.on("error", (err) => {
+  console.error(`[WORKER] Batch email worker error: ${err.message}`);
 });
 
 export { batchemailWorker };

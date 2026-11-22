@@ -213,7 +213,7 @@ describe("E2E pipeline: fetch → batch → send", () => {
     const emailFromDb = fullCampaignEmail();
     emailFromDb.stage = 1;
     emailFromDb.status = "RUNNING";
-    emailFromDb.credId = "cred-1";
+    (emailFromDb as any).credId = "cred-1";
 
     mockPrisma.campaignEmail.findMany.mockResolvedValue([emailFromDb]);
     mockPrisma.pitchEmail.findFirst.mockResolvedValue(fullPitch());

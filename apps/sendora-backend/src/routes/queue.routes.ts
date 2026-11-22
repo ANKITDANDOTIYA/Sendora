@@ -1,7 +1,59 @@
 import { Hono } from "hono";
 import { processSingleCampaignJob } from "../jobs/fetch-campaigns.js";
+import {
+  campaignQueue,
+  initializeCampaignScheduler,
+} from "../queues/campaign.queue.js";
 
 const queueRoutes = new Hono();
+
+// Diagnostic endpoint to inspect active BullMQ schedulers in Redis
+queueRoutes.get("/schedulers", async (c) => {
+  try {
+    const schedulers = await campaignQueue.getJobSchedulers();
+    return c.json(
+      {
+        success: true,
+        queue: "campaignQueue",
+        schedulerCount: schedulers.length,
+        schedulers,
+      },
+      200,
+    );
+  } catch (error: any) {
+    return c.json(
+      {
+        success: false,
+        error: error.message || "Failed to inspect schedulers.",
+      },
+      500,
+    );
+  }
+});
+
+// Manual trigger / re-initialization endpoint if Redis was offline during startup
+queueRoutes.post("/init-schedulers", async (c) => {
+  try {
+    await initializeCampaignScheduler();
+    const schedulers = await campaignQueue.getJobSchedulers();
+    return c.json(
+      {
+        success: true,
+        message: "Campaign scheduler initialized successfully.",
+        schedulers,
+      },
+      200,
+    );
+  } catch (error: any) {
+    return c.json(
+      {
+        success: false,
+        error: error.message || "Failed to initialize scheduler.",
+      },
+      500,
+    );
+  }
+});
 
 queueRoutes.post("/trigger-campaign", async (c) => {
   try {

@@ -32,7 +32,7 @@ export async function queueEmailBatch(emailIds: string[]): Promise<string> {
   );
 
   log("INFO", `Queued ${emailIds.length} emails for processing`, job.id);
-  return job.id;
+  return job.id || "";
 }
 
 /**

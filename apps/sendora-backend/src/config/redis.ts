@@ -53,4 +53,12 @@ if (redisUrl) {
 
 const redis = redisConnection;
 
+redisConnection.on("error", (err) => {
+  console.error(`[REDIS] Connection error: ${err.message}`);
+});
+
+redisConnection.on("connect", () => {
+  console.log("[REDIS] Connected successfully.");
+});
+
 export { Queue, Worker, redisConnection, redis };

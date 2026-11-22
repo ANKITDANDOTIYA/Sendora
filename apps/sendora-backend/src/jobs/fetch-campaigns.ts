@@ -12,6 +12,7 @@ import {
  */
 async function processCampaignJob() {
   try {
+    console.log("[CAMPAIGN] Fetching eligible campaigns...");
     // Fetch all non-deleted campaigns with a user
     const campaigns = await prisma.campaign.findMany({
       where: {
@@ -37,6 +38,10 @@ async function processCampaignJob() {
       );
       return [];
     }
+
+    console.log(
+      `[CAMPAIGN] Found ${validCampaigns.length} eligible campaign(s): [${campaignIds.join(", ")}]`,
+    );
 
     // Fetch all emails belonging to valid campaigns with RUNNING status,
     // where email status is PENDING or RUNNING (excluding REPLIED and BOUNCED)
@@ -72,6 +77,8 @@ async function processCampaignJob() {
       return [];
     }
 
+    console.log(`[CAMPAIGN] Found ${emailIds.length} eligible email(s).`);
+
     // Fetch enqueued email IDs
     const alreadyEnqueuedIds = await getEnqueuedEmailIds();
     emailIds = emailIds.filter((id: any) => !alreadyEnqueuedIds.has(id));
@@ -81,12 +88,20 @@ async function processCampaignJob() {
       return [];
     }
 
+    const batchSize = 50;
+    const batchCount = Math.ceil(emailIds.length / batchSize);
+    console.log(
+      `[CAMPAIGN] Creating ${batchCount} batch(es) for ${emailIds.length} email(s).`,
+    );
     console.log("Enqueuing email IDs:", emailIds);
-    await enqueueEmailBatches(emailIds);
+    const jobIds = await enqueueEmailBatches(emailIds);
+    console.log(
+      `[QUEUE] Batch jobs added successfully. Job IDs: [${jobIds.join(", ")}]`,
+    );
 
     return emailIds;
   } catch (error) {
-    console.error("Error processing campaign job:", error);
+    console.error("[CAMPAIGN] Error processing campaign job:", error);
     return [];
   }
 }
@@ -129,13 +144,23 @@ function isCampaignActiveToday(campaign: any, currentTime: DateTime) {
  * @param {Object} campaign - Campaign object.
  * @returns {boolean} True if the campaign meets the criteria, false otherwise.
  */
-function passesDeliveryAndCreditCheck(campaign: any) {
+function passesDeliveryAndCreditCheck(campaign: any): boolean {
   try {
-    if (
-      !campaign ||
-      !campaign.user?.timezone ||
-      !campaign.emailDeliveryPeriod
-    ) {
+    if (!campaign) {
+      return false;
+    }
+
+    if (!campaign.user?.timezone) {
+      console.log(
+        `[CAMPAIGN] Skipping campaign ${campaign.id}: User profile timezone is not configured.`,
+      );
+      return false;
+    }
+
+    if (!campaign.emailDeliveryPeriod) {
+      console.log(
+        `[CAMPAIGN] Skipping campaign ${campaign.id}: Email delivery period is not configured.`,
+      );
       return false;
     }
 
@@ -145,16 +170,34 @@ function passesDeliveryAndCreditCheck(campaign: any) {
       currentTime,
       campaign.emailDeliveryPeriod,
     );
+    if (!withinPeriod) {
+      console.log(
+        `[CAMPAIGN] Skipping campaign ${campaign.id}: Outside delivery period '${campaign.emailDeliveryPeriod}' (current hour: ${currentTime.toFormat("HH:mm")}, tz: ${campaign.user.timezone}).`,
+      );
+      return false;
+    }
 
     // Check if the campaign's associated user has available credits.
     const availableCredits = (campaign.user?.credits ?? 0) > 0;
+    if (!availableCredits) {
+      console.log(
+        `[CAMPAIGN] Skipping campaign ${campaign.id}: Insufficient user credits (${campaign.user?.credits ?? 0}).`,
+      );
+      return false;
+    }
 
     // Check if today is an active day for the campaign
     const isActiveDay = isCampaignActiveToday(campaign, currentTime);
+    if (!isActiveDay) {
+      console.log(
+        `[CAMPAIGN] Skipping campaign ${campaign.id}: Today (${currentTime.weekdayLong}) is not an active day.`,
+      );
+      return false;
+    }
 
-    return withinPeriod && availableCredits && isActiveDay;
+    return true;
   } catch (error) {
-    console.error(`Error checking campaign ${campaign?.id}:`, error);
+    console.error(`[CAMPAIGN] Error checking campaign ${campaign?.id}:`, error);
     return false;
   }
 }

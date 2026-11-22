@@ -3,7 +3,8 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
 import { queueRoutes } from "./routes/queue.routes.js";
-import imapQueue from "./queues/imap.queue.js";
+import { initializeCampaignScheduler } from "./queues/campaign.queue.js";
+import { initializeImapScheduler } from "./queues/imap.queue.js";
 import { campaignWorker } from "./workers/campaign.worker.js";
 import { authWorker } from "./workers/auth.worker.js";
 import { batchemailWorker } from "./workers/batchemail.worker.js";
@@ -49,3 +50,26 @@ const port = parseInt(process.env.PORT || "8100");
 serve({ fetch: app.fetch, port, hostname: "0.0.0.0" });
 
 console.log(`Hono backend server running on port ${port}...`);
+
+// Explicitly initialize recurring schedulers during startup
+async function startSchedulers() {
+  try {
+    await initializeCampaignScheduler();
+  } catch (error: any) {
+    console.error(
+      "[STARTUP] CRITICAL: Failed to initialize campaign scheduler on startup:",
+      error.message || error,
+    );
+  }
+
+  try {
+    await initializeImapScheduler();
+  } catch (error: any) {
+    console.error(
+      "[STARTUP] Error initializing IMAP scheduler on startup:",
+      error.message || error,
+    );
+  }
+}
+
+await startSchedulers();

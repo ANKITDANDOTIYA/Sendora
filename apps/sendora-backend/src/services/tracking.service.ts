@@ -71,7 +71,7 @@ export async function getEmailOpenStats(campaignId: string): Promise<any> {
     // Get open counts
     const totalEmails = emails.length;
     const openedEmails = emails.filter(
-      (email) => email.opened && email.opened > 0,
+      (email: any) => email.opened && email.opened > 0,
     ).length;
     const openRate = totalEmails > 0 ? (openedEmails / totalEmails) * 100 : 0;
 
