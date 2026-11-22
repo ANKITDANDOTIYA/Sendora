@@ -88,7 +88,7 @@ describe("processEmailBatchJob", () => {
   it("fetches emails, sets up transporters, and processes", async () => {
     const emails = [makeEmail({ id: "e-1" }), makeEmail({ id: "e-2" })];
     vi.mocked(fetchCampaignEmails).mockResolvedValue(emails);
-    vi.mocked(sendCampaignEmail).mockResolvedValue();
+    vi.mocked(sendCampaignEmail).mockResolvedValue(true);
 
     const result = await processEmailBatchJob(["e-1", "e-2"]);
 
@@ -101,7 +101,7 @@ describe("processEmailBatchJob", () => {
 
   it("removes enqueued email IDs after processing", async () => {
     vi.mocked(fetchCampaignEmails).mockResolvedValue([makeEmail()]);
-    vi.mocked(sendCampaignEmail).mockResolvedValue();
+    vi.mocked(sendCampaignEmail).mockResolvedValue(true);
 
     await processEmailBatchJob(["email-1"]);
 
@@ -122,7 +122,7 @@ describe("processEmailBatchJob", () => {
     vi.mocked(fetchCampaignEmails).mockResolvedValue(emails);
     vi.mocked(sendCampaignEmail)
       .mockRejectedValueOnce(new Error("send failed"))
-      .mockResolvedValueOnce(undefined);
+      .mockResolvedValueOnce(true);
 
     const result = await processEmailBatchJob(["e-1", "e-2"]);
 
@@ -138,7 +138,7 @@ describe("processEmailBatchJob", () => {
       makeEmail({ id: "e-2", credId: undefined }),
     ];
     vi.mocked(fetchCampaignEmails).mockResolvedValue(emails);
-    vi.mocked(sendCampaignEmail).mockResolvedValue();
+    vi.mocked(sendCampaignEmail).mockResolvedValue(true);
 
     await processEmailBatchJob(["e-1", "e-2"]);
 
@@ -153,7 +153,7 @@ describe("processEmailBatchJob", () => {
       makeEmail({ id: "e-3", credId: "cred-A" }),
     ];
     vi.mocked(fetchCampaignEmails).mockResolvedValue(emails);
-    vi.mocked(sendCampaignEmail).mockResolvedValue();
+    vi.mocked(sendCampaignEmail).mockResolvedValue(true);
 
     await processEmailBatchJob(["e-1", "e-2", "e-3"]);
 

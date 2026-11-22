@@ -39,13 +39,24 @@ export async function POST(request, { params }) {
 
     const emailCredential = campaignEmail.cred;
 
+    const port = emailCredential.port ? Number(emailCredential.port) : 465;
+    const secure =
+      port === 465 ? true : port === 587 ? false : Boolean(emailCredential.secure);
+
     const transporter = nodemailer.createTransport({
-      host: emailCredential.host,
-      port: emailCredential.port,
-      secure: emailCredential.secure,
+      host: emailCredential.host || "smtp.gmail.com",
+      port,
+      secure,
       auth: {
         user: emailCredential.username,
         pass: emailCredential.password,
+      },
+      connectionTimeout: 30000,
+      greetingTimeout: 30000,
+      socketTimeout: 45000,
+      tls: {
+        rejectUnauthorized: false,
+        minVersion: "TLSv1.2",
       },
     });
 

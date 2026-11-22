@@ -43,8 +43,11 @@ export async function POST(request) {
         password,
         userId: user.userId,
         host: host || "smtp.gmail.com",
-        port: port || 465,
-        secure: secure || true,
+        port: port ? Number(port) : 465,
+        secure:
+          secure !== undefined
+            ? Boolean(secure)
+            : Number(port) === 465 || !port,
         imapHost: imap_host,
         imapEmail,
         imapPassword,

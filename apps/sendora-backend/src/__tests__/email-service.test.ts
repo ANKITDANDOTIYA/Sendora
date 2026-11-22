@@ -25,6 +25,9 @@ vi.mock("../utils/helpers.js", () => ({
 
 vi.mock("../utils/credential-service.js", () => ({
   getEmailTransporter: vi.fn(),
+  removeTransporter: vi.fn(),
+  setupEmailTransporters: vi.fn(),
+  normalizeSmtpConfig: vi.fn(),
 }));
 
 vi.mock("../services/campaign-service.js", () => ({
@@ -346,6 +349,35 @@ describe("sendCampaignEmail", () => {
     await sendCampaignEmail(makeEmail(), "tx");
 
     // Email status should NOT be updated — left for retry
+    expect(prisma.campaignEmail.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: "FAILED" } }),
+    );
+  });
+
+  // ================== NOT FAILED: Connection timeout error (transient) ==================
+
+  it("does NOT mark FAILED on Connection timeout error (retryable)", async () => {
+    const timeoutError = new Error("Connection timeout");
+    mockTransporter.sendMail.mockRejectedValue(timeoutError);
+
+    const result = await sendCampaignEmail(makeEmail(), "tx");
+
+    expect(result).toBe(false);
+    // Email status should NOT be updated — left for retry
+    expect(prisma.campaignEmail.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: "FAILED" } }),
+    );
+  });
+
+  it("does NOT mark FAILED on ETIMEDOUT code error (retryable)", async () => {
+    const etimedoutError = Object.assign(new Error("Socket timed out"), {
+      code: "ETIMEDOUT",
+    });
+    mockTransporter.sendMail.mockRejectedValue(etimedoutError);
+
+    const result = await sendCampaignEmail(makeEmail(), "tx");
+
+    expect(result).toBe(false);
     expect(prisma.campaignEmail.update).not.toHaveBeenCalledWith(
       expect.objectContaining({ data: { status: "FAILED" } }),
     );

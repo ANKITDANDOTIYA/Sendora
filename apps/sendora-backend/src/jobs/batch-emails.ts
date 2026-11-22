@@ -144,17 +144,19 @@ async function processEmailsByCredential(
       const emailTxId = `${batchId}:${email.id.substring(0, 6)}`;
       try {
         log("INFO", `Processing email ${email.id}`, emailTxId);
-        await sendCampaignEmail(email, emailTxId);
-        results.push(email);
+        const sent = await sendCampaignEmail(email, emailTxId);
+        if (sent !== false) {
+          results.push(email);
 
-        // Use a longer delay between emails from the same credential (3-5 seconds)
-        const delayMs = 20000 + Math.random() * 2000;
-        log(
-          "INFO",
-          `Delaying ${Math.round(delayMs)}ms before next email`,
-          emailTxId,
-        );
-        await delay(delayMs);
+          // Use a longer delay between emails from the same credential (3-5 seconds)
+          const delayMs = 20000 + Math.random() * 2000;
+          log(
+            "INFO",
+            `Delaying ${Math.round(delayMs)}ms before next email`,
+            emailTxId,
+          );
+          await delay(delayMs);
+        }
       } catch (error: any) {
         log("ERROR", `Error processing email ${email.id}`, emailTxId, {
           error: error.message,

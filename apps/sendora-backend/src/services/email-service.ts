@@ -10,7 +10,11 @@ import {
   applyHoganPersonalization,
   normalizeEmailBody,
 } from "../utils/helpers.js";
-import { getEmailTransporter } from "../utils/credential-service.js";
+import {
+  getEmailTransporter,
+  removeTransporter,
+  setupEmailTransporters,
+} from "../utils/credential-service.js";
 import {
   fetchPitch,
   updateEmailStatus,
@@ -82,14 +86,64 @@ async function getThreadingInfo(
 }
 
 /**
+ * Determines whether an error while sending is a transient / retryable error
+ * (connection timeout, socket timeout, connection reset, temporary rate limit, etc.)
+ */
+export function isTransientError(error: any): boolean {
+  if (!error) return false;
+
+  const message = String(error.message || "").toLowerCase();
+  const code = String(error.code || "").toUpperCase();
+  const responseCode = Number(error.responseCode) || 0;
+  const response = String(error.response || "").toLowerCase();
+
+  // Connection timeout / socket / network errors
+  if (
+    message.includes("connection timeout") ||
+    message.includes("greeting timeout") ||
+    message.includes("socket timeout") ||
+    message.includes("timed out") ||
+    message.includes("timeout") ||
+    code === "ETIMEDOUT" ||
+    code === "ESOCKET" ||
+    code === "ECONNRESET" ||
+    code === "EHOSTUNREACH" ||
+    code === "ENETUNREACH" ||
+    code === "EAI_AGAIN" ||
+    code === "ENOTFOUND"
+  ) {
+    return true;
+  }
+
+  // Rate limiting / too many login attempts
+  if (
+    (code === "EAUTH" && (responseCode === 454 || responseCode === 421)) ||
+    message.includes("too many login attempts") ||
+    message.includes("rate limit") ||
+    response.includes("too many login attempts") ||
+    response.includes("rate limit")
+  ) {
+    return true;
+  }
+
+  // 4xx temporary SMTP failures
+  if (responseCode >= 400 && responseCode < 500) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Sends an individual campaign email.
  * @param email - Email object from campaign.
  * @param txId - Transaction ID for logging
+ * @returns boolean indicating whether email was sent successfully
  */
 export async function sendCampaignEmail(
   email: EmailRecord,
   txId = uuidv4().substring(0, 8),
-): Promise<void> {
+): Promise<boolean> {
   const startTime = Date.now();
 
   // Mask email for logging
@@ -116,7 +170,7 @@ export async function sendCampaignEmail(
         where: { id: email.id },
         data: { status: "FAILED" },
       });
-      return;
+      return false;
     }
 
     log(
@@ -136,7 +190,7 @@ export async function sendCampaignEmail(
         where: { id: email.id },
         data: { status: "FAILED" },
       });
-      return;
+      return false;
     }
 
     log("INFO", `Pitch found: ${pitch.id}`, txId);
@@ -159,7 +213,7 @@ export async function sendCampaignEmail(
         where: { id: email.id },
         data: { status: "FAILED" },
       });
-      return;
+      return false;
     }
 
     log("INFO", `Found ${allCreds.length} credentials for campaign`, txId);
@@ -181,7 +235,7 @@ export async function sendCampaignEmail(
           emailId: email.id,
           campaignId: email.campaign,
         });
-        return;
+        return false;
       }
 
       log("INFO", `Found ${availableCreds.length} available credentials`, txId);
@@ -216,7 +270,7 @@ export async function sendCampaignEmail(
           where: { id: email.id },
           data: { status: "FAILED" },
         });
-        return;
+        return false;
       }
 
       log(
@@ -238,7 +292,7 @@ export async function sendCampaignEmail(
           where: { id: email.id },
           data: { status: "FAILED" },
         });
-        return;
+        return false;
       }
 
       // Check if credential has reached its daily limit
@@ -250,7 +304,7 @@ export async function sendCampaignEmail(
           sentCount,
           limit: credential.dailyLimit || 30,
         });
-        return;
+        return false;
       }
     }
 
@@ -265,7 +319,7 @@ export async function sendCampaignEmail(
         where: { id: email.id },
         data: { status: "FAILED" },
       });
-      return;
+      return false;
     }
 
     // Get the transporter using the credential's id
@@ -274,13 +328,23 @@ export async function sendCampaignEmail(
       `Getting email transporter for credential ${credential.id}`,
       txId,
     );
-    const transporter = getEmailTransporter(credential.id);
+    let transporter = getEmailTransporter(credential.id);
+
+    if (!transporter) {
+      log(
+        "INFO",
+        `No transporter cached for credential ${credential.id}, setting up on-demand`,
+        txId,
+      );
+      setupEmailTransporters([credential]);
+      transporter = getEmailTransporter(credential.id);
+    }
 
     if (!transporter) {
       log("ERROR", `No transporter found for credential`, txId, {
         credentialId: credential.id,
       });
-      return;
+      return false;
     }
 
     log("INFO", `Personalization`, txId, {
@@ -349,7 +413,7 @@ export async function sendCampaignEmail(
         where: { id: email.id },
         data: { status: "FAILED" },
       });
-      return;
+      return false;
     }
 
     // Set up mail options
@@ -449,27 +513,28 @@ export async function sendCampaignEmail(
       log("INFO", `Email processing completed successfully`, txId, {
         duration: `${Date.now() - startTime}ms`,
       });
+      return true;
     } catch (error: any) {
-      // Check for rate limiting errors
-      if (
-        error.code === "EAUTH" &&
-        (error.responseCode === 454 || error.responseCode === 421) &&
-        (error.response.includes("Too many login attempts") ||
-          error.response.includes("rate limit"))
-      ) {
+      if (isTransientError(error)) {
+        // Transient network, timeout, or rate-limit issue.
+        // Retain PENDING/RUNNING status in database so the queue/scheduler will retry in the next cycle.
         log(
           "WARN",
-          `Rate limit hit for credential. Email will be retried later with a different credential.`,
+          `Transient error sending email. Retaining status for future retry: ${error.message}`,
           txId,
           {
+            emailId: email.id,
             credentialId: credential.id,
             errorCode: error.code,
             responseCode: error.responseCode,
-            response: error.response,
+            errorMessage: error.message,
           },
         );
 
-        // Don't update the email status so it can be retried later
+        // Evict cached transporter so next attempt gets a fresh connection
+        removeTransporter(credential.id);
+
+        return false;
       } else if (error.code === "EENVELOPE") {
         // Handle recipient errors
         log("ERROR", `Recipient error for email`, txId, {
@@ -483,6 +548,7 @@ export async function sendCampaignEmail(
           where: { id: email.id },
           data: { status: "FAILED" },
         });
+        return false;
       } else {
         log("ERROR", `Error sending email`, txId, {
           error: error.message,
@@ -491,11 +557,12 @@ export async function sendCampaignEmail(
           credentialId: credential.id,
         });
 
-        // For other errors, mark as failed but allow retry
+        // For other unrecoverable errors, mark as failed
         await prisma.campaignEmail.update({
           where: { id: email.id },
           data: { status: "FAILED" },
         });
+        return false;
       }
     }
   } catch (error: any) {
@@ -504,5 +571,6 @@ export async function sendCampaignEmail(
       stack: error.stack,
       emailId: email.id,
     });
+    return false;
   }
 }

@@ -18,11 +18,11 @@ export const LEAD_STATUSES = [
 export const LEAD_STATUS_VALUES = LEAD_STATUSES.map((s) => s.value);
 
 /**
- * Statuses shown before the user touches the filter: the leads a campaign is
- * still working on, plus the ones that answered. Terminal noise (completed,
- * bounced, failed) stays out of the way until asked for.
+ * Default statuses shown before the user touches the filter.
+ * Includes all statuses so that leads never vanish from the table
+ * when their status updates (such as FAILED, COMPLETED, or BOUNCED).
  */
-export const DEFAULT_LEAD_STATUSES = ["PENDING", "RUNNING", "REPLIED"];
+export const DEFAULT_LEAD_STATUSES = LEAD_STATUS_VALUES;
 
 /**
  * Statuses a lead can still receive email in. Narrower than

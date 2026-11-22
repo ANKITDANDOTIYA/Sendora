@@ -11,6 +11,68 @@ import type { CredentialRecord } from "../models/email.js";
 export const emailTransporters = new Map<string, nodemailer.Transporter>();
 
 /**
+ * Normalizes host, port, and TLS options for SMTP connection.
+ * Resolves standard port/secure pairings:
+ * - Port 465 is SSL/TLS direct (secure: true)
+ * - Port 587 is STARTTLS (secure: false)
+ * - Gmail defaults to smtp.gmail.com with port 465 (secure: true)
+ */
+export function normalizeSmtpConfig(cred: CredentialRecord): {
+  host: string;
+  port: number;
+  secure: boolean;
+} {
+  let host = cred.host?.trim() || "";
+  const isGmail =
+    host.includes("gmail") ||
+    host.includes("googlemail") ||
+    Boolean(cred.username?.trim().toLowerCase().endsWith("@gmail.com")) ||
+    Boolean(cred.username?.trim().toLowerCase().endsWith("@googlemail.com"));
+
+  if (!host && isGmail) {
+    host = "smtp.gmail.com";
+  }
+
+  let port = cred.port;
+  let secure = cred.secure;
+
+  if (port === 465) {
+    secure = true;
+  } else if (port === 587) {
+    secure = false;
+  } else if (!port) {
+    if (secure === true) {
+      port = 465;
+    } else if (secure === false && !isGmail) {
+      port = 587;
+    } else {
+      // Default for Gmail and standard SMTPS is port 465 (secure: true)
+      port = 465;
+      secure = true;
+    }
+  } else {
+    // Other port, use explicit secure if provided, otherwise true if port 465
+    secure = cred.secure !== undefined ? Boolean(cred.secure) : port === 465;
+  }
+
+  return { host, port, secure };
+}
+
+/**
+ * Removes and closes a cached transporter (e.g. after a connection error or socket timeout).
+ * @param credentialId - Credential ID of the email sender.
+ */
+export function removeTransporter(credentialId: string): void {
+  const existing = emailTransporters.get(credentialId);
+  if (existing) {
+    try {
+      existing.close();
+    } catch {}
+    emailTransporters.delete(credentialId);
+  }
+}
+
+/**
  * Extracts unique email credentials from campaign emails.
  * @param campaignEmails - List of campaign email objects.
  * @returns Unique email credentials.
@@ -94,30 +156,37 @@ export function setupEmailTransporters(
     }
 
     try {
+      const config = normalizeSmtpConfig(cred);
+
       log("INFO", `Creating new transporter for credential ${cred.id}`, txId, {
-        host: cred.host,
-        port: cred.port || (cred.secure ? 465 : 587),
-        secure: cred.secure,
+        host: config.host,
+        port: config.port,
+        secure: config.secure,
       });
 
       const transporter = nodemailer.createTransport({
-        host: cred.host,
-        port: cred.port || (cred.secure ? 465 : 587), // Default ports if not specified
-        secure: cred.secure,
+        host: config.host,
+        port: config.port,
+        secure: config.secure,
         auth: {
           user: cred.username,
           pass: cred.password,
         },
-        // Add connection pool settings
+        // Connection pool settings
         pool: true,
-        maxConnections: 5,
+        maxConnections: 3,
         maxMessages: 100,
-        // Add a reasonable timeout
-        connectionTimeout: 10000,
-        // Disable opportunistic TLS to prevent connection issues
-        opportunisticTLS: false,
-        // Set to true if using Gmail
-        requireTLS: cred.host.includes("gmail"),
+        // Generous timeouts for cloud hosting (Render / Docker / NAT / slow DNS)
+        connectionTimeout: 30000,
+        greetingTimeout: 30000,
+        socketTimeout: 45000,
+        // Require TLS when connecting to port 587 (STARTTLS)
+        requireTLS: !config.secure,
+        // TLS certificate options for cloud compatibility
+        tls: {
+          rejectUnauthorized: false,
+          minVersion: "TLSv1.2",
+        },
         // Debug mode for troubleshooting
         debug: process.env.NODE_ENV !== "production",
         logger: process.env.NODE_ENV !== "production",
@@ -132,7 +201,9 @@ export function setupEmailTransporters(
         : cred.username.substring(0, 3) + "***";
 
       log("INFO", `Created new transporter for credential ${cred.id}`, txId, {
-        host: cred.host,
+        host: config.host,
+        port: config.port,
+        secure: config.secure,
         username: maskedUsername,
       });
     } catch (error: any) {
