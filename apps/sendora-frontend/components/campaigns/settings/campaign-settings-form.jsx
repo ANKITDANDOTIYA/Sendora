@@ -153,6 +153,7 @@ const CampaignSettingsForm = ({ campaign, campaignData }) => {
                   <SelectContent className="border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
                     <SelectGroup>
                       <SelectLabel>Select time of the day...</SelectLabel>
+                      <SelectItem value="ALL_DAY">Any time (All Day)</SelectItem>
                       <SelectItem value="MORNING">6 AM - 12 PM</SelectItem>
                       <SelectItem value="EVENING">12 PM - 6 PM</SelectItem>
                       <SelectItem value="NIGHT">6 PM - 12 AM</SelectItem>

@@ -78,6 +78,34 @@ export async function PATCH(request, { params }) {
       }
     }
 
+    // When campaign is started (status updated to RUNNING), ensure user has timezone and trigger queue
+    if (status === "RUNNING") {
+      try {
+        const camp = await prisma.campaign.findUnique({
+          where: { id },
+          include: { user: true },
+        });
+
+        if (camp?.user && !camp.user.timezone) {
+          await prisma.user.update({
+            where: { id: camp.user.id },
+            data: { timezone: "UTC" },
+          });
+        }
+
+        const backendUrl = process.env.BACKEND_URL || "http://localhost:8100";
+        fetch(`${backendUrl}/queue/trigger-campaign`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ campaignId: id, force: true }),
+        }).catch((err) => {
+          console.warn(`[API] Campaign start trigger skipped: ${err.message}`);
+        });
+      } catch (e) {
+        console.warn("[API] Non-blocking campaign start trigger failed:", e);
+      }
+    }
+
     return NextResponse.json(record);
   } catch (error) {
     console.error(`[API] Error updating campaign ${id}:`, error);

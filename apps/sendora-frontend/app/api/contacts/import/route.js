@@ -73,19 +73,51 @@ export async function POST(request) {
       );
     }
 
-    // 4. Create new contacts
+    // 4. Create new contacts with sentAt: null (leads have not been sent yet)
     const created = await prisma.campaignEmail.createMany({
       data: newContacts.map((c) => ({
         name: c.name || "",
         email: c.email,
         campaignId: campaign,
         status: "PENDING",
-        sentAt: new Date(),
+        sentAt: null,
         opened: 0,
         stage: 0,
         personalization: c.personalization || undefined,
       })),
     });
+
+    // Check campaign status and ensure user has timezone configured
+    try {
+      const currentCampaign = await prisma.campaign.findUnique({
+        where: { id: campaign },
+        include: { user: true },
+      });
+
+      if (currentCampaign?.user && !currentCampaign.user.timezone) {
+        await prisma.user.update({
+          where: { id: currentCampaign.user.id },
+          data: { timezone: "UTC" },
+        });
+      }
+
+      // If campaign is RUNNING or PENDING, trigger background queue immediately
+      if (
+        currentCampaign &&
+        (currentCampaign.status === "RUNNING" || currentCampaign.status === "PENDING")
+      ) {
+        const backendUrl = process.env.BACKEND_URL || "http://localhost:8100";
+        fetch(`${backendUrl}/queue/trigger-campaign`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ campaignId: campaign, force: true }),
+        }).catch((err) => {
+          console.warn(`[API] Queue trigger notification skipped: ${err.message}`);
+        });
+      }
+    } catch (e) {
+      console.warn("[API] Non-blocking campaign trigger check failed:", e);
+    }
 
     return NextResponse.json({
       message: "Contacts imported",

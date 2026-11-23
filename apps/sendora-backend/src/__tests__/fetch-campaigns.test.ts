@@ -72,9 +72,9 @@ describe("processCampaignJob", () => {
     expect(enqueueEmailBatches).not.toHaveBeenCalled();
   });
 
-  it("filters out campaigns with no user timezone", async () => {
+  it("filters out campaigns with no user", async () => {
     vi.mocked(prisma.campaign.findMany).mockResolvedValue([
-      makeCampaign({ user: { id: "u-1", timezone: null, credits: 10 } }),
+      makeCampaign({ user: null }),
     ] as any);
 
     const result = await processCampaignJob();
@@ -82,14 +82,46 @@ describe("processCampaignJob", () => {
     expect(result).toEqual([]);
   });
 
-  it("filters out campaigns with no emailDeliveryPeriod", async () => {
-    vi.mocked(prisma.campaign.findMany).mockResolvedValue([
-      makeCampaign({ emailDeliveryPeriod: null }),
+  it("defaults to UTC when user has no configured timezone", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-25T09:00:00Z")); // Wednesday 9am UTC (within MORNING 6-12)
+
+    const campaign = makeCampaign({
+      emailDeliveryPeriod: "MORNING",
+      activeDays: ["wednesday"],
+      user: { id: "u-1", timezone: null, credits: 10, email: "o@t.com" },
+    });
+
+    vi.mocked(prisma.campaign.findMany).mockResolvedValue([campaign] as any);
+    vi.mocked(prisma.campaignEmail.findMany).mockResolvedValue([
+      makeCampaignEmail({ campaignId: campaign.id }),
     ] as any);
 
     const result = await processCampaignJob();
 
-    expect(result).toEqual([]);
+    expect(enqueueEmailBatches).toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it("defaults to ALL_DAY when campaign has no emailDeliveryPeriod", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-25T15:00:00Z")); // Wednesday 3pm UTC
+
+    const campaign = makeCampaign({
+      emailDeliveryPeriod: null,
+      activeDays: ["wednesday"],
+      user: { id: "u-1", timezone: "UTC", credits: 10, email: "o@t.com" },
+    });
+
+    vi.mocked(prisma.campaign.findMany).mockResolvedValue([campaign] as any);
+    vi.mocked(prisma.campaignEmail.findMany).mockResolvedValue([
+      makeCampaignEmail({ campaignId: campaign.id }),
+    ] as any);
+
+    const result = await processCampaignJob();
+
+    expect(enqueueEmailBatches).toHaveBeenCalled();
+    vi.useRealTimers();
   });
 
   it("filters out campaigns where user has 0 credits", async () => {

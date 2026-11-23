@@ -22,6 +22,7 @@ vi.mock("../config/redis.js", () => {
   return {
     Queue: MockQueue,
     Worker: vi.fn(),
+    createRedisClient: vi.fn(() => mockRedis),
     redisConnection: mockRedis,
     redis: mockRedis,
   };

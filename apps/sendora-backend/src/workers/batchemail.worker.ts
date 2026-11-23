@@ -1,5 +1,5 @@
 import { Worker } from "bullmq";
-import { redis } from "../config/redis.js";
+import { createRedisClient } from "../config/redis.js";
 import { processEmailBatchJob } from "../jobs/batch-emails.js";
 
 const batchemailWorker = new Worker(
@@ -16,7 +16,7 @@ const batchemailWorker = new Worker(
     // Wait for 1 minute (60,000 ms) before processing the next job
     await new Promise((resolve) => setTimeout(resolve, 60000));
   },
-  { connection: redis, concurrency: 1 }, // Ensuring only one job processes at a time
+  { connection: createRedisClient(), concurrency: 1 }, // Ensuring only one job processes at a time
 );
 
 // Add event handlers for better monitoring

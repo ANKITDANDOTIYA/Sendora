@@ -57,7 +57,7 @@ export default function CreateCampaignDialog({ children }) {
       const res = await trigger({
         title: title.trim(),
         desc: desc.trim(),
-        email_delivery_period: "MORNING",
+        email_delivery_period: "ALL_DAY",
       });
 
       toast.success("Campaign created successfully!");

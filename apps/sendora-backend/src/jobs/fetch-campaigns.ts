@@ -43,12 +43,12 @@ async function processCampaignJob() {
       `[CAMPAIGN] Found ${validCampaigns.length} eligible campaign(s): [${campaignIds.join(", ")}]`,
     );
 
-    // Fetch all emails belonging to valid campaigns with RUNNING status,
+    // Fetch all emails belonging to valid campaigns with RUNNING or PENDING status,
     // where email status is PENDING or RUNNING (excluding REPLIED and BOUNCED)
     const campaignEmails = await prisma.campaignEmail.findMany({
       where: {
         campaignId: { in: campaignIds },
-        campaign: { status: "RUNNING" },
+        campaign: { status: { in: ["RUNNING", "PENDING"] } },
         status: { in: ["PENDING", "RUNNING"] },
         NOT: [{ status: "REPLIED" }, { status: "BOUNCED" }],
       },
@@ -75,6 +75,24 @@ async function processCampaignJob() {
     if (emailIds.length === 0) {
       console.log("No valid emails to process.");
       return [];
+    }
+
+    // Auto-activate any PENDING campaigns with valid emails
+    const pendingCampaignIds = Array.from(
+      new Set(
+        validEmails
+          .filter((email: any) => email.campaign?.status === "PENDING")
+          .map((email: any) => email.campaignId),
+      ),
+    );
+    if (pendingCampaignIds.length > 0) {
+      console.log(
+        `[CAMPAIGN] Auto-activating pending campaign(s) to RUNNING: [${pendingCampaignIds.join(", ")}]`,
+      );
+      await prisma.campaign.updateMany({
+        where: { id: { in: pendingCampaignIds } },
+        data: { status: "RUNNING" },
+      });
     }
 
     console.log(`[CAMPAIGN] Found ${emailIds.length} eligible email(s).`);
@@ -150,29 +168,25 @@ function passesDeliveryAndCreditCheck(campaign: any): boolean {
       return false;
     }
 
-    if (!campaign.user?.timezone) {
+    if (!campaign.user) {
       console.log(
-        `[CAMPAIGN] Skipping campaign ${campaign.id}: User profile timezone is not configured.`,
+        `[CAMPAIGN] Skipping campaign ${campaign.id}: No associated user found.`,
       );
       return false;
     }
 
-    if (!campaign.emailDeliveryPeriod) {
-      console.log(
-        `[CAMPAIGN] Skipping campaign ${campaign.id}: Email delivery period is not configured.`,
-      );
-      return false;
-    }
+    const userTimezone = campaign.user.timezone || "UTC";
+    const deliveryPeriod = campaign.emailDeliveryPeriod || "ALL_DAY";
 
     // Use Luxon to get the current time in the campaign's timezone
-    const currentTime = DateTime.now().setZone(campaign.user.timezone);
+    const currentTime = DateTime.now().setZone(userTimezone);
     const withinPeriod = isWithinDeliveryPeriod(
       currentTime,
-      campaign.emailDeliveryPeriod,
+      deliveryPeriod,
     );
     if (!withinPeriod) {
       console.log(
-        `[CAMPAIGN] Skipping campaign ${campaign.id}: Outside delivery period '${campaign.emailDeliveryPeriod}' (current hour: ${currentTime.toFormat("HH:mm")}, tz: ${campaign.user.timezone}).`,
+        `[CAMPAIGN] Skipping campaign ${campaign.id}: Outside delivery period '${deliveryPeriod}' (current hour: ${currentTime.toFormat("HH:mm")}, tz: ${userTimezone}).`,
       );
       return false;
     }
@@ -205,14 +219,13 @@ function passesDeliveryAndCreditCheck(campaign: any): boolean {
 /**
  * Determines whether the current time falls within the specified delivery period.
  * @param {DateTime} currentTime - The current time as a Luxon DateTime.
- * @param {string} deliveryPeriod - Delivery period name (e.g., "MORNING", "EVENING").
+ * @param {string} deliveryPeriod - Delivery period name (e.g., "MORNING", "EVENING", "ALL_DAY").
  * @returns {boolean} True if within the period, false otherwise.
  */
 function isWithinDeliveryPeriod(currentTime: DateTime, deliveryPeriod: string) {
-  // Ensure deliveryPeriod is a string; if not, log and return false.
-  if (typeof deliveryPeriod !== "string") {
-    console.warn(`Invalid delivery period: ${deliveryPeriod}`);
-    return false;
+  // Ensure deliveryPeriod is a string; if missing/null, default to all-day delivery.
+  if (typeof deliveryPeriod !== "string" || !deliveryPeriod.trim()) {
+    return true;
   }
 
   const periods: Record<string, { start: number; end: number }> = {
@@ -220,14 +233,19 @@ function isWithinDeliveryPeriod(currentTime: DateTime, deliveryPeriod: string) {
     EVENING: { start: 12, end: 18 }, // 12 PM - 6 PM
     NIGHT: { start: 18, end: 24 }, // 6 PM - 12 AM
     MIDNIGHT: { start: 0, end: 6 }, // 12 AM - 6 AM
+    ALL_DAY: { start: 0, end: 24 }, // 24 hours
+    ANYTIME: { start: 0, end: 24 },
+    ANY: { start: 0, end: 24 },
   };
 
   const periodKey = deliveryPeriod.toUpperCase();
   const period = periods[periodKey];
 
   if (!period) {
-    console.warn(`Unrecognized delivery period: ${deliveryPeriod}`);
-    return false;
+    console.warn(
+      `[CAMPAIGN] Unrecognized delivery period: '${deliveryPeriod}', defaulting to all-day.`,
+    );
+    return true;
   }
 
   const currentHour = currentTime.hour;
@@ -285,8 +303,11 @@ function daysPassed(isoDateString: string) {
 async function processSingleCampaignJob(
   campaignId: string,
   userId?: string,
+  options: { force?: boolean } = { force: true },
 ) {
-  console.log(`[TEST TRIGGER] Campaign triggered for campaignId: ${campaignId}`);
+  console.log(
+    `[TEST TRIGGER] Campaign triggered for campaignId: ${campaignId}, force: ${options?.force}`,
+  );
 
   try {
     const campaign = await prisma.campaign.findUnique({
@@ -315,11 +336,23 @@ async function processSingleCampaignJob(
     }
 
     if (campaign.status !== "RUNNING") {
-      return {
-        success: false,
-        reason: "Campaign not RUNNING",
-        details: `Campaign status is currently '${campaign.status}'. Please start the campaign first.`,
-      };
+      // Auto-activate PENDING campaign to RUNNING on trigger
+      if (campaign.status === "PENDING") {
+        console.log(
+          `[TEST TRIGGER] Auto-activating pending campaign ${campaignId} to RUNNING.`,
+        );
+        await prisma.campaign.update({
+          where: { id: campaignId },
+          data: { status: "RUNNING" },
+        });
+        campaign.status = "RUNNING";
+      } else {
+        return {
+          success: false,
+          reason: "Campaign not RUNNING",
+          details: `Campaign status is currently '${campaign.status}'. Please start the campaign first.`,
+        };
+      }
     }
 
     const creds = campaign.campaignEmailCredentials;
@@ -331,35 +364,25 @@ async function processSingleCampaignJob(
       };
     }
 
-    if (!campaign.user?.timezone) {
-      return {
-        success: false,
-        reason: "Missing timezone",
-        details: "User profile timezone is not set. Please set timezone in Account Settings.",
-      };
-    }
+    const userTimezone = campaign.user?.timezone || "UTC";
+    const deliveryPeriod = campaign.emailDeliveryPeriod || "ALL_DAY";
+    const currentTime = DateTime.now().setZone(userTimezone);
 
-    if (!campaign.emailDeliveryPeriod) {
-      return {
-        success: false,
-        reason: "Missing delivery period",
-        details: "Campaign delivery period is not configured.",
-      };
-    }
-
-    const currentTime = DateTime.now().setZone(campaign.user.timezone);
-    const withinPeriod = isWithinDeliveryPeriod(
-      currentTime,
-      campaign.emailDeliveryPeriod,
-    );
-    if (!withinPeriod) {
-      return {
-        success: false,
-        reason: "Outside delivery window",
-        details: `Current time in user timezone (${currentTime.toFormat(
-          "HH:mm",
-        )}) is outside delivery period '${campaign.emailDeliveryPeriod}'.`,
-      };
+    // Only enforce delivery window if force is false
+    if (!options?.force) {
+      const withinPeriod = isWithinDeliveryPeriod(
+        currentTime,
+        deliveryPeriod,
+      );
+      if (!withinPeriod) {
+        return {
+          success: false,
+          reason: "Outside delivery window",
+          details: `Current time in user timezone (${currentTime.toFormat(
+            "HH:mm",
+          )}) is outside delivery period '${deliveryPeriod}'.`,
+        };
+      }
     }
 
     const availableCredits = (campaign.user?.credits ?? 0) > 0;
@@ -372,7 +395,7 @@ async function processSingleCampaignJob(
     }
 
     const isActiveDay = isCampaignActiveToday(campaign, currentTime);
-    if (!isActiveDay) {
+    if (!isActiveDay && !options?.force) {
       return {
         success: false,
         reason: "No active day",

@@ -57,7 +57,7 @@ queueRoutes.post("/init-schedulers", async (c) => {
 
 queueRoutes.post("/trigger-campaign", async (c) => {
   try {
-    const { campaignId, userId } = await c.req.json();
+    const { campaignId, userId, force } = await c.req.json();
 
     if (!campaignId) {
       return c.json(
@@ -70,7 +70,9 @@ queueRoutes.post("/trigger-campaign", async (c) => {
       );
     }
 
-    const result = await processSingleCampaignJob(campaignId, userId);
+    const result = await processSingleCampaignJob(campaignId, userId, {
+      force: force !== false,
+    });
 
     if (result.success) {
       return c.json(result, 200);

@@ -26,36 +26,36 @@ const redisUrl = process.env.REDIS_URL;
 const host = process.env.REDIS_HOST || "localhost";
 const port = parseInt(process.env.REDIS_PORT || "6379");
 
-let redisConnection: Redis;
+export function createRedisClient(): Redis {
+  let client: Redis;
+  if (redisUrl) {
+    client = new Redis(redisUrl, {
+      maxRetriesPerRequest: null,
+    });
+  } else {
+    const redisOptions: any = {
+      host,
+      port,
+      maxRetriesPerRequest: null,
+    };
+    if (host === "localhost") {
+      redisOptions.family = 4;
+    }
+    if (process.env.REDIS_PASSWORD) {
+      redisOptions.password = process.env.REDIS_PASSWORD;
+    }
+    client = new Redis(redisOptions);
+  }
 
-if (redisUrl) {
-  console.log(`[Redis Config] Initializing Redis client via REDIS_URL`);
-  redisConnection = new Redis(redisUrl, {
-    maxRetriesPerRequest: null,
+  client.on("error", (err) => {
+    console.error(`[REDIS] Connection error: ${err.message}`);
   });
-} else {
-  console.log(
-    `[Redis Config] Initializing Redis client (host=${host}, port=${port})`,
-  );
-  const redisOptions: any = {
-    host,
-    port,
-    maxRetriesPerRequest: null,
-  };
-  if (host === "localhost") {
-    redisOptions.family = 4;
-  }
-  if (process.env.REDIS_PASSWORD) {
-    redisOptions.password = process.env.REDIS_PASSWORD;
-  }
-  redisConnection = new Redis(redisOptions);
+
+  return client;
 }
 
+const redisConnection: Redis = createRedisClient();
 const redis = redisConnection;
-
-redisConnection.on("error", (err) => {
-  console.error(`[REDIS] Connection error: ${err.message}`);
-});
 
 redisConnection.on("connect", () => {
   console.log("[REDIS] Connected successfully.");

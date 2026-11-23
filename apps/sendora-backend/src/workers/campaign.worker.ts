@@ -1,5 +1,5 @@
 import { Worker } from "bullmq";
-import { redis } from "../config/redis.js";
+import { createRedisClient } from "../config/redis.js";
 import { processCampaignJob } from "../jobs/fetch-campaigns.js";
 
 const campaignWorker = new Worker(
@@ -10,7 +10,7 @@ const campaignWorker = new Worker(
     );
     await processCampaignJob();
   },
-  { connection: redis },
+  { connection: createRedisClient() },
 );
 
 campaignWorker.on("completed", (job) => {

@@ -1,5 +1,5 @@
 import { Worker } from "bullmq";
-import { redis } from "../config/redis.js";
+import { createRedisClient } from "../config/redis.js";
 import { processAuthJob } from "../jobs/authenticate-pocketbase.js";
 
 const authWorker = new Worker(
@@ -7,7 +7,7 @@ const authWorker = new Worker(
   async () => {
     await processAuthJob();
   },
-  { connection: redis },
+  { connection: createRedisClient() },
 );
 
 export { authWorker };

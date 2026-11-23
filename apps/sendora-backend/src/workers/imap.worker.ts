@@ -1,5 +1,5 @@
 import { Worker } from "bullmq";
-import { redis } from "../config/redis.js";
+import { createRedisClient } from "../config/redis.js";
 import { checkEmails } from "../services/imap.service.js";
 
 const imapWorker = new Worker(
@@ -14,7 +14,7 @@ const imapWorker = new Worker(
       console.log("IMAP worker error:", error);
     }
   },
-  { connection: redis },
+  { connection: createRedisClient() },
 );
 
 export { imapWorker };

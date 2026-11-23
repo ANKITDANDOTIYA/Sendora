@@ -37,7 +37,7 @@ export async function POST(request) {
         email,
         password: hashedPassword,
         name: name || null,
-        timezone: timezone || null,
+        timezone: timezone || "UTC",
         credits: 500,
         aiCredits: 500,
       },

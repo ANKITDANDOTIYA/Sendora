@@ -58,7 +58,14 @@ export async function POST(request) {
           verified: true,
           credits: 500,
           aiCredits: 500,
+          timezone: "UTC",
         },
+      });
+    } else if (!user.timezone) {
+      // Backfill timezone default if user was created before timezone defaulting
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { timezone: "UTC" },
       });
     }
 
