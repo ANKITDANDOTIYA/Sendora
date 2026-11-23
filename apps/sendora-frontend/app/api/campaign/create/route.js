@@ -28,6 +28,7 @@ export async function POST(request) {
         emailDeliveryPeriod: email_delivery_period,
         status: "PENDING",
         setuped: false,
+        isTrackingEnabled: true,
       },
     });
 

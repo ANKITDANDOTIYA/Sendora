@@ -66,7 +66,9 @@ const AnalyticsDashboard = ({ campaignId, campaign }) => {
     (sum, contact) => sum + (contact.stage || 0),
     0,
   );
-  const emailsOpened = contacts.filter((c) => c.opened > 0).length;
+  const emailsOpened = contacts.filter(
+    (c) => (c.opened && c.opened > 0) || c.status === "REPLIED",
+  ).length;
   const emailsReplied = contacts.filter((c) => c.status === "REPLIED").length;
 
   // Calculate completion percentage

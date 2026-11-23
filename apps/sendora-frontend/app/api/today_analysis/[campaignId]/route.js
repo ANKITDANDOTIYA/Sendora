@@ -8,7 +8,7 @@ export async function GET(request, { params }) {
     // Compute current stats: count of emails per stage + total opened
     const campaignEmails = await prisma.campaignEmail.findMany({
       where: { campaignId },
-      select: { stage: true, opened: true },
+      select: { stage: true, opened: true, status: true },
     });
 
     const stagesSum = campaignEmails.reduce(
@@ -16,7 +16,8 @@ export async function GET(request, { params }) {
       0,
     );
     const openedSum = campaignEmails.reduce(
-      (sum, e) => sum + (e.opened || 0),
+      (sum, e) =>
+        sum + (e.opened && e.opened > 0 ? e.opened : e.status === "REPLIED" ? 1 : 0),
       0,
     );
 

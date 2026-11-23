@@ -7,17 +7,40 @@ const revalidate = 0;
 
 export async function GET(request) {
   try {
-    const token = request.headers.get("authorization");
-    const currUser = jwtDecode(token);
+    let token = request.headers.get("authorization");
+    if (!token) {
+      return NextResponse.json(
+        { error: "Authorization token is required" },
+        { status: 401 },
+      );
+    }
+    if (token.startsWith("Bearer ")) {
+      token = token.slice(7).trim();
+    }
 
-    if (!currUser?.userId) {
+    const currUser = jwtDecode(token);
+    const userId = currUser?.userId || currUser?.id;
+
+    if (!userId) {
       return NextResponse.json(
         { error: "User ID is required" },
         { status: 400 },
       );
     }
 
-    const userId = currUser.userId;
+    // Auto-heal legacy replied leads in database: a replied email was opened
+    try {
+      await prisma.campaignEmail.updateMany({
+        where: {
+          campaign: { userId },
+          status: "REPLIED",
+          opened: 0,
+        },
+        data: { opened: 1 },
+      });
+    } catch (e) {
+      // non-fatal
+    }
 
     // Compute dashboard stats via aggregates
     const [totalContacts, totalCampaigns, emailsSent, responses] =
@@ -49,10 +72,16 @@ export async function GET(request) {
       take: 6,
     });
 
-    // For each recent campaign, compute stats
+    // For each recent campaign, compute accurate stats and real open rate percentage
     const formattedRecentCampaigns = await Promise.all(
       recentCampaigns.map(async (campaign) => {
-        const [stagesSum, openedSum] = await Promise.all([
+        const [
+          stagesSum,
+          openedSum,
+          sentMessagesCount,
+          openedOrRepliedLeadsCount,
+          openEventsCount,
+        ] = await Promise.all([
           prisma.campaignEmail
             .aggregate({
               where: { campaignId: campaign.id },
@@ -65,12 +94,50 @@ export async function GET(request) {
               _sum: { opened: true },
             })
             .then((r) => r._sum.opened || 0),
+          prisma.campaignMessage.count({
+            where: {
+              sent: true,
+              campaignEmail: { campaignId: campaign.id },
+            },
+          }),
+          // Any lead that opened or replied to this campaign
+          prisma.campaignEmail.count({
+            where: {
+              campaignId: campaign.id,
+              OR: [
+                { opened: { gt: 0 } },
+                { status: "REPLIED" },
+                { campaignOpens: { some: {} } },
+                { campaignMessages: { some: { sent: false } } },
+              ],
+            },
+          }),
+          prisma.campaignOpen.count({
+            where: { campaignEmail: { campaignId: campaign.id } },
+          }),
         ]);
+
+        const campaignEmailsSent = Math.max(sentMessagesCount, stagesSum);
+        const campaignOpenedCount = Math.max(
+          openedSum,
+          openedOrRepliedLeadsCount,
+          openEventsCount,
+        );
+
+        // Open rate percentage (0% - 100%)
+        const openRate =
+          campaignEmailsSent > 0
+            ? Math.min(
+                100,
+                Math.round((campaignOpenedCount / campaignEmailsSent) * 100),
+              )
+            : 0;
+
         return {
           id: campaign.id,
           title: campaign.title,
-          emailsSent: stagesSum,
-          openRate: openedSum,
+          emailsSent: campaignEmailsSent,
+          openRate,
         };
       }),
     );
@@ -172,16 +239,23 @@ export async function GET(request) {
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
       .slice(0, 10);
 
-    return NextResponse.json({
-      stats: {
-        total_contacts: totalContacts,
-        total_campaigns: totalCampaigns,
-        emails_sent: emailsSent,
-        responses: responses,
+    return NextResponse.json(
+      {
+        stats: {
+          total_contacts: totalContacts,
+          total_campaigns: totalCampaigns,
+          emails_sent: emailsSent,
+          responses: responses,
+        },
+        recent_campaigns: formattedRecentCampaigns,
+        recent_activities: recentActivities,
       },
-      recent_campaigns: formattedRecentCampaigns,
-      recent_activities: recentActivities,
-    });
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        },
+      },
+    );
   } catch (error) {
     console.error("Error fetching dashboard stats:", error);
     return NextResponse.json(

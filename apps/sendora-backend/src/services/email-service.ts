@@ -217,6 +217,25 @@ export function logDeliveryLifecycle(data: DeliveryLifecycleLog): void {
 }
 
 /**
+ * Resolves the public base URL for open-tracking pixel links.
+ * Prefers configured BACKEND_URL, then Render-provided environment variables,
+ * falling back to local port (never a dead external domain).
+ */
+export function getTrackingBaseUrl(): string {
+  if (process.env.BACKEND_URL && process.env.BACKEND_URL.trim() !== "") {
+    return process.env.BACKEND_URL.trim().replace(/\/$/, "");
+  }
+  if (process.env.RENDER_EXTERNAL_URL && process.env.RENDER_EXTERNAL_URL.trim() !== "") {
+    return process.env.RENDER_EXTERNAL_URL.trim().replace(/\/$/, "");
+  }
+  if (process.env.RENDER_EXTERNAL_HOSTNAME && process.env.RENDER_EXTERNAL_HOSTNAME.trim() !== "") {
+    return `https://${process.env.RENDER_EXTERNAL_HOSTNAME.trim()}`.replace(/\/$/, "");
+  }
+  const port = process.env.PORT || 8100;
+  return `http://localhost:${port}`;
+}
+
+/**
  * Sends an individual campaign email.
  * @param email - Email object from campaign.
  * @param txId - Transaction ID for logging
@@ -501,8 +520,8 @@ export async function sendCampaignEmail(
 
     // Add tracking pixel only if tracking is enabled
     if (isTrackingEnabled) {
-      const baseUrl = process.env.BACKEND_URL || "https://backend.sendora.com";
-      const trackingUrl = `${baseUrl.replace(/\/$/, "")}/tracking/open?id=${email.id}`;
+      const baseUrl = getTrackingBaseUrl();
+      const trackingUrl = `${baseUrl}/tracking/open?id=${email.id}`;
       const trackingPixel = `<img src="${trackingUrl}" width="1" height="1" alt="" style="display:none;width:1px;height:1px;" />`;
 
       // Add the tracking pixel at the end of the email body
@@ -1030,8 +1049,8 @@ export async function sendSingleLeadImmediate(
 
     let processedBody = body;
     if (lead.campaign?.isTrackingEnabled) {
-      const baseUrl = process.env.BACKEND_URL || "https://backend.sendora.com";
-      const trackingUrl = `${baseUrl.replace(/\/$/, "")}/tracking/open?id=${lead.id}`;
+      const baseUrl = getTrackingBaseUrl();
+      const trackingUrl = `${baseUrl}/tracking/open?id=${lead.id}`;
       processedBody += `<img src="${trackingUrl}" width="1" height="1" alt="" style="display:none;width:1px;height:1px;" />`;
     }
 

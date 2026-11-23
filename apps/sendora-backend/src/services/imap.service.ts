@@ -80,12 +80,38 @@ async function processEmail(msg: any, username: string) {
       },
     });
 
-    // Update campaign email status to REPLIED
+    // Update campaign email status to REPLIED and ensure it is credited as opened
     if (campaignMessage.campaignEmailId) {
+      const existingLead = await prisma.campaignEmail.findUnique({
+        where: { id: campaignMessage.campaignEmailId },
+        select: { id: true, opened: true },
+      });
+
+      const nextOpened =
+        existingLead?.opened && existingLead.opened > 0
+          ? existingLead.opened
+          : 1;
+
       await prisma.campaignEmail.update({
         where: { id: campaignMessage.campaignEmailId },
-        data: { status: "REPLIED" },
+        data: {
+          status: "REPLIED",
+          opened: nextOpened,
+        },
       });
+
+      // Ensure a campaignOpen record exists for timeline/activity tracking
+      const existingOpen = await prisma.campaignOpen.findFirst({
+        where: { campaignEmailId: campaignMessage.campaignEmailId },
+      });
+      if (!existingOpen) {
+        await prisma.campaignOpen.create({
+          data: {
+            campaignEmailId: campaignMessage.campaignEmailId,
+            created: msg.envelope.date ? new Date(msg.envelope.date) : new Date(),
+          },
+        });
+      }
     }
   } catch (error: any) {
     console.log(`Error processing email for ${username}:`, error);

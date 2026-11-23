@@ -41,7 +41,7 @@ export async function GET(request, { params }) {
     });
 
     // Compute stats via aggregates
-    const [emailsSent, responses, openCount] = await Promise.all([
+    const [emailsSent, responses, openCount, uniqueOpenedLeads] = await Promise.all([
       prisma.campaignMessage.count({
         where: { sent: true, campaignEmail: { campaignId: id } },
       }),
@@ -51,9 +51,21 @@ export async function GET(request, { params }) {
       prisma.campaignOpen.count({
         where: { campaignEmail: { campaignId: id } },
       }),
+      prisma.campaignEmail.count({
+        where: {
+          campaignId: id,
+          OR: [
+            { opened: { gt: 0 } },
+            { status: "REPLIED" },
+            { campaignOpens: { some: {} } },
+            { campaignMessages: { some: { sent: false } } },
+          ],
+        },
+      }),
     ]);
 
-    const openRate = totalRecipients > 0 ? openCount / totalRecipients : 0;
+    const effectiveOpens = Math.max(openCount, uniqueOpenedLeads);
+    const openRate = totalRecipients > 0 ? effectiveOpens / totalRecipients : 0;
     const responseRate = totalRecipients > 0 ? responses / totalRecipients : 0;
 
     // Fetch recent activities for this campaign
