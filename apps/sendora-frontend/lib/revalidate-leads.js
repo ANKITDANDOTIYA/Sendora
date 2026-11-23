@@ -40,5 +40,8 @@ export async function revalidateCampaignLeads(campaignId) {
     undefined,
     { revalidate: true },
   );
+
+  // 4. Revalidate user profile & credits
+  await mutate("/api/user/view");
 }
 

@@ -17,4 +17,8 @@ const imapWorker = new Worker(
   { connection: createRedisClient() },
 );
 
+imapWorker.on("error", (err) => {
+  console.error(`[WORKER] IMAP worker error: ${err.message}`);
+});
+
 export { imapWorker };

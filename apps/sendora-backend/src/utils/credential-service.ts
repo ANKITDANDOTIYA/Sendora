@@ -17,7 +17,10 @@ export const emailTransporters = new Map<string, nodemailer.Transporter>();
  * - Port 587 is STARTTLS (secure: false)
  * - Gmail defaults to smtp.gmail.com with port 465 (secure: true)
  */
-export function normalizeSmtpConfig(cred: CredentialRecord): {
+export function normalizeSmtpConfig(
+  cred: CredentialRecord,
+  overridePort?: number,
+): {
   host: string;
   port: number;
   secure: boolean;
@@ -33,7 +36,7 @@ export function normalizeSmtpConfig(cred: CredentialRecord): {
     host = "smtp.gmail.com";
   }
 
-  let port = cred.port;
+  let port = overridePort ?? cred.port;
   let secure = cred.secure;
 
   if (port === 465) {
@@ -246,5 +249,123 @@ export function getEmailTransporter(
   } else {
     log("INFO", `Retrieved transporter for credential ${credentialId}`, txId);
     return transporter;
+  }
+}
+
+/**
+ * Creates a fresh direct Nodemailer transporter for immediate send
+ * or batch processing without retaining stale connections in memory.
+ */
+export function createFreshTransporter(
+  cred: CredentialRecord,
+  overridePort?: number,
+): nodemailer.Transporter {
+  const config = normalizeSmtpConfig(cred, overridePort);
+
+  const transportOptions: any = {
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    auth: {
+      user: cred.username,
+      pass: cred.password,
+    },
+    // Direct connection avoids holding dead pooled sockets across hour-long gaps
+    pool: false,
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 45000,
+    requireTLS: !config.secure,
+    tls: {
+      rejectUnauthorized: false,
+      minVersion: "TLSv1.2",
+    },
+    debug: process.env.NODE_ENV !== "production",
+    logger: process.env.NODE_ENV !== "production",
+  };
+
+  return nodemailer.createTransport(transportOptions);
+}
+
+/**
+ * Sends mail via Nodemailer with automatic port fallback (465 <-> 587)
+ * to guard against cloud outbound firewall blocks or socket timeouts.
+ */
+export async function sendMailWithFallback(
+  credential: CredentialRecord,
+  mailOptions: nodemailer.SendMailOptions,
+  txId = "",
+): Promise<{ messageId: string; response: string; portUsed: number }> {
+  const primaryConfig = normalizeSmtpConfig(credential);
+  const fallbackPort = primaryConfig.port === 465 ? 587 : 465;
+
+  try {
+    const transporter = createFreshTransporter(credential, primaryConfig.port);
+    log(
+      "INFO",
+      `Calling nodemailer sendMail on primary port ${primaryConfig.port}`,
+      txId,
+      {
+        host: primaryConfig.host,
+        port: primaryConfig.port,
+        secure: primaryConfig.secure,
+      },
+    );
+    const info = await transporter.sendMail(mailOptions);
+    try {
+      transporter.close();
+    } catch {}
+    return {
+      messageId: info.messageId || `<${uuidv4()}@${primaryConfig.host}>`,
+      response: info.response || "250 OK",
+      portUsed: primaryConfig.port,
+    };
+  } catch (error: any) {
+    const isTimeout =
+      error.message?.toLowerCase().includes("timeout") ||
+      error.code === "ETIMEDOUT" ||
+      error.code === "ESOCKET" ||
+      error.code === "ECONNRESET";
+
+    if (!isTimeout) {
+      throw error;
+    }
+
+    log(
+      "WARN",
+      `Primary port ${primaryConfig.port} failed with network timeout (${error.message}). Attempting fallback to port ${fallbackPort}...`,
+      txId,
+    );
+
+    const fallbackTransporter = createFreshTransporter(credential, fallbackPort);
+    try {
+      const info = await fallbackTransporter.sendMail(mailOptions);
+      try {
+        fallbackTransporter.close();
+      } catch {}
+      log(
+        "INFO",
+        `Fallback sendMail on port ${fallbackPort} succeeded!`,
+        txId,
+        {
+          messageId: info.messageId,
+        },
+      );
+      return {
+        messageId: info.messageId || `<${uuidv4()}@${primaryConfig.host}>`,
+        response: info.response || "250 OK",
+        portUsed: fallbackPort,
+      };
+    } catch (fallbackError: any) {
+      try {
+        fallbackTransporter.close();
+      } catch {}
+      log(
+        "ERROR",
+        `Fallback port ${fallbackPort} also failed: ${fallbackError.message}`,
+        txId,
+      );
+      throw fallbackError;
+    }
   }
 }

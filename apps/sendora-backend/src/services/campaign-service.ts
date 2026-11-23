@@ -130,11 +130,12 @@ export async function updateEmailStatus(email: EmailRecord): Promise<void> {
 
   try {
     const user = email.campaign?.user;
+    const userId = user?.id || (email as any).campaign?.userId;
 
-    if (user && user.id) {
-      log("INFO", `Updating user credits`, txId, { userId: user.id });
+    if (userId) {
+      log("INFO", `Updating user credits`, txId, { userId });
       await prisma.user.update({
-        where: { id: user.id },
+        where: { id: userId },
         data: { credits: { decrement: 1 } },
       });
     }

@@ -10,4 +10,8 @@ const authWorker = new Worker(
   { connection: createRedisClient() },
 );
 
+authWorker.on("error", (err) => {
+  console.error(`[WORKER] Auth worker error: ${err.message}`);
+});
+
 export { authWorker };

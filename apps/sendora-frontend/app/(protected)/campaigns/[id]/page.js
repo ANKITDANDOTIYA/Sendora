@@ -81,11 +81,11 @@ export default function CampaignLeadsPage() {
   } = useSWR(
     campaignId
       ? `/api/contacts/paginatedapi?${buildLeadsQuery({
-          campaignId,
-          search: searchQuery,
-          page: currentPage,
-          filters,
-        })}`
+        campaignId,
+        search: searchQuery,
+        page: currentPage,
+        filters,
+      })}`
       : null,
     fetcher,
     {
@@ -210,12 +210,22 @@ export default function CampaignLeadsPage() {
       status: lead.status,
       stage: lead.stage || 0,
       opened: lead.opened ? "Yes" : "No",
-      sent_from: lead.expand?.cred?.username || "-",
-      sent_at: lead.sentAt || null,
+      sent_from:
+        (lead.stage || 0) > 0 || lead.status === "COMPLETED"
+          ? lead.expand?.cred?.username || lead.cred?.username || "-"
+          : "-",
+      sent_at:
+        (lead.stage || 0) > 0 || lead.status === "COMPLETED"
+          ? lead.sentAt || null
+          : null,
       actions: {
         id: lead.id,
         name: lead.name,
+        email: lead.email,
+        stage: lead.stage || 0,
+        status: lead.status,
         campaignId: campaignId,
+        campaignTitle: currentCampaign?.title,
         onViewTimeline: handleViewTimeline,
         onEdit: handleEditLead,
         onDelete: handleDeleteLead,
@@ -224,6 +234,7 @@ export default function CampaignLeadsPage() {
   }, [
     displayLeads,
     campaignId,
+    currentCampaign?.title,
     handleViewTimeline,
     handleEditLead,
     handleDeleteLead,
@@ -360,7 +371,7 @@ export default function CampaignLeadsPage() {
         },
       },
     ],
-    [currentCampaign?.isTrackingEnabled, currentCampaign?.maxStageCount],
+    [],
   );
 
   return (

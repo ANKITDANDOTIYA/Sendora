@@ -1,4 +1,8 @@
 "use client";
+import { useEffect } from "react";
+import useSWR from "swr";
+import fetcher from "@/lib/fetcher";
+import useAuthStore from "@/store/auth.store";
 import {
   CoinAIcon,
   StarsCIcon,
@@ -11,9 +15,45 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-export function CreditsDisplay({ user }) {
-  const totalCredits = user?.credits || 0;
-  const aiCredits = user?.aiCredits || 0;
+export function CreditsDisplay({ user: propUser }) {
+  const { user: storeUser, token, updateUser } = useAuthStore();
+  const baseUser = propUser || storeUser;
+
+  // Real-time synchronization of user credits with database
+  const { data: remoteUser } = useSWR(
+    token ? "/api/user/view" : null,
+    fetcher,
+    {
+      refreshInterval: 8000, // Poll every 8s to sync background batch campaign sends
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true,
+      dedupingInterval: 2000,
+    },
+  );
+
+  // Keep Zustand auth-storage updated whenever credits change
+  useEffect(() => {
+    if (remoteUser && typeof remoteUser.credits === "number") {
+      if (
+        storeUser?.credits !== remoteUser.credits ||
+        storeUser?.aiCredits !== remoteUser.aiCredits
+      ) {
+        updateUser({
+          credits: remoteUser.credits,
+          aiCredits: remoteUser.aiCredits,
+        });
+      }
+    }
+  }, [remoteUser, storeUser?.credits, storeUser?.aiCredits, updateUser]);
+
+  const totalCredits =
+    typeof remoteUser?.credits === "number"
+      ? remoteUser.credits
+      : baseUser?.credits || 0;
+  const aiCredits =
+    typeof remoteUser?.aiCredits === "number"
+      ? remoteUser.aiCredits
+      : baseUser?.aiCredits || 0;
 
   const isLowCredits = totalCredits < 20;
   const isLowAI = aiCredits < 20;

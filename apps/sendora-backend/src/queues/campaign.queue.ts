@@ -8,6 +8,12 @@ const campaignQueue = new Queue(CAMPAIGN_QUEUE_NAME, {
   connection: redisConnection,
 });
 
+if (typeof (campaignQueue as any).on === "function") {
+  campaignQueue.on("error", (err) => {
+    console.error(`[QUEUE] Campaign queue error: ${err.message}`);
+  });
+}
+
 /**
  * Initializes and registers the recurring hourly campaign scheduler with BullMQ.
  * Uses atomic upsert so multiple backend instances safely register the same scheduler.

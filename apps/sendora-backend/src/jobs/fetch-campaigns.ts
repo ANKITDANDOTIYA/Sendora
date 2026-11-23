@@ -472,4 +472,11 @@ async function processSingleCampaignJob(
     };
   }
 }
-export { processCampaignJob, processSingleCampaignJob };
+export {
+  processCampaignJob,
+  processSingleCampaignJob,
+  isCampaignActiveToday,
+  isWithinDeliveryPeriod,
+  shouldSendToday,
+  passesDeliveryAndCreditCheck,
+};

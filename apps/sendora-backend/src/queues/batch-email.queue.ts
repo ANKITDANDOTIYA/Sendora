@@ -5,6 +5,12 @@ import { log } from "../utils/logger.js";
 // Create a queue for batch email processing
 const batchEmailQueue = new Queue("batchEmailQueue", { connection: redis });
 
+if (typeof (batchEmailQueue as any).on === "function") {
+  batchEmailQueue.on("error", (err) => {
+    console.error(`[QUEUE] Batch email queue error: ${err.message}`);
+  });
+}
+
 // Set to track enqueued email IDs
 const enqueuedEmailIds = new Set<string>();
 
