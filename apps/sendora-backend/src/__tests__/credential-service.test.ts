@@ -20,6 +20,9 @@ import {
   removeTransporter,
   emailTransporters,
   getEmailTransporter,
+  getRelayUrl,
+  sendViaRelay,
+  sendMailWithFallback,
 } from "../utils/credential-service.js";
 
 describe("Credential Service & SMTP Configuration", () => {
@@ -129,6 +132,70 @@ describe("Credential Service & SMTP Configuration", () => {
       expect(mockClose).toHaveBeenCalled();
       expect(emailTransporters.has("cred-remove")).toBe(false);
       expect(getEmailTransporter("cred-remove")).toBeNull();
+    });
+  });
+
+  describe("getRelayUrl", () => {
+    const originalEnv = process.env;
+
+    beforeEach(() => {
+      process.env = { ...originalEnv };
+    });
+
+    it("prefers explicit relay URL when provided and trims trailing slashes", () => {
+      const url = getRelayUrl("https://my-app.vercel.app///");
+      expect(url).toBe("https://my-app.vercel.app");
+    });
+
+    it("falls back to FRONTEND_URL and selects the first URL if comma-separated", () => {
+      process.env.FRONTEND_URL = "https://app1.vercel.app, https://app2.vercel.app";
+      const url = getRelayUrl();
+      expect(url).toBe("https://app1.vercel.app");
+    });
+
+    it("returns null if no relay or frontend URL is configured", () => {
+      delete process.env.FRONTEND_URL;
+      delete process.env.NEXT_PUBLIC_APP_URL;
+      delete process.env.APP_URL;
+      expect(getRelayUrl()).toBeNull();
+    });
+  });
+
+  describe("HTTPS Relay Fallback", () => {
+    it("successfully sends via HTTP relay", async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          messageId: "<relayed-msg@sendora>",
+          response: "250 OK",
+          portUsed: 465,
+        }),
+      });
+      global.fetch = mockFetch;
+
+      const cred = {
+        id: "cred-1",
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true,
+        username: "user@gmail.com",
+        password: "secret",
+      } as any;
+
+      const result = await sendViaRelay(
+        "https://app.vercel.app",
+        cred,
+        { to: "recipient@example.com", subject: "Hello" } as any,
+        "tx-relay",
+      );
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const call = mockFetch.mock.calls[0];
+      expect(call[0]).toBe("https://app.vercel.app/api/email/relay");
+      expect(result.messageId).toBe("<relayed-msg@sendora>");
+      expect(result.response).toContain("250 OK");
     });
   });
 });

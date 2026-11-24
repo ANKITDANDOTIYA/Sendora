@@ -272,9 +272,10 @@ export function createFreshTransporter(
     },
     // Direct connection avoids holding dead pooled sockets across hour-long gaps
     pool: false,
-    connectionTimeout: 30000,
-    greetingTimeout: 30000,
-    socketTimeout: 45000,
+    // Fast detection of blocked cloud ports (e.g. Render Free tier drops outbound 465/587)
+    connectionTimeout: 7000,
+    greetingTimeout: 7000,
+    socketTimeout: 15000,
     requireTLS: !config.secure,
     tls: {
       rejectUnauthorized: false,
@@ -288,13 +289,98 @@ export function createFreshTransporter(
 }
 
 /**
+ * Resolves the configured frontend / relay URL from parameters or environment.
+ */
+export function getRelayUrl(explicitUrl?: string): string | null {
+  const candidate =
+    explicitUrl ||
+    process.env.FRONTEND_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.APP_URL;
+
+  if (!candidate) return null;
+
+  // If candidate contains comma-separated URLs, pick the first
+  const firstUrl = candidate.split(",")[0].trim();
+  if (!firstUrl) return null;
+
+  return firstUrl.replace(/\/+$/, "");
+}
+
+/**
+ * Attempts to dispatch email via the HTTPS relay running on Vercel (Port 443).
+ * Bypasses Render's platform firewall block on SMTP ports 25, 465, and 587.
+ */
+export async function sendViaRelay(
+  relayBaseUrl: string,
+  credential: CredentialRecord,
+  mailOptions: nodemailer.SendMailOptions,
+  txId = "",
+): Promise<{ messageId: string; response: string; portUsed: number }> {
+  const cleanUrl = relayBaseUrl.replace(/\/+$/, "");
+  const relayEndpoint = `${cleanUrl}/api/email/relay`;
+  const relaySecret =
+    process.env.INTERNAL_RELAY_SECRET ||
+    process.env.JWT_SECRET ||
+    "sendora-relay-secret";
+
+  log(
+    "INFO",
+    `[RELAY] Relaying email dispatch over HTTPS to ${relayEndpoint}`,
+    txId,
+  );
+
+  const response = await fetch(relayEndpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-relay-secret": relaySecret,
+    },
+    body: JSON.stringify({
+      credential: {
+        id: credential.id,
+        host: credential.host,
+        port: credential.port,
+        secure: credential.secure,
+        username: credential.username,
+        password: credential.password,
+      },
+      mailOptions,
+    }),
+  });
+
+  const data = (await response.json().catch(() => ({}))) as any;
+
+  if (!response.ok || !data.success) {
+    throw new Error(
+      data.error ||
+        `Relay request failed with status ${response.status}: ${response.statusText}`,
+    );
+  }
+
+  log(
+    "INFO",
+    `[RELAY] Email delivered via HTTPS relay! MessageId: ${data.messageId}`,
+    txId,
+  );
+
+  return {
+    messageId: data.messageId,
+    response: data.response || "250 OK (Relayed via Vercel)",
+    portUsed: data.portUsed || 465,
+  };
+}
+
+/**
  * Sends mail via Nodemailer with automatic port fallback (465 <-> 587)
- * to guard against cloud outbound firewall blocks or socket timeouts.
+ * and automatic HTTPS relay fallback via Vercel to guard against
+ * cloud outbound firewall blocks (Render Free tier blocks ports 25, 465, 587).
  */
 export async function sendMailWithFallback(
   credential: CredentialRecord,
   mailOptions: nodemailer.SendMailOptions,
   txId = "",
+  explicitRelayUrl?: string,
 ): Promise<{ messageId: string; response: string; portUsed: number }> {
   const primaryConfig = normalizeSmtpConfig(credential);
   const fallbackPort = primaryConfig.port === 465 ? 587 : 465;
@@ -337,8 +423,8 @@ export async function sendMailWithFallback(
       txId,
     );
 
-    const fallbackTransporter = createFreshTransporter(credential, fallbackPort);
     try {
+      const fallbackTransporter = createFreshTransporter(credential, fallbackPort);
       const info = await fallbackTransporter.sendMail(mailOptions);
       try {
         fallbackTransporter.close();
@@ -357,14 +443,52 @@ export async function sendMailWithFallback(
         portUsed: fallbackPort,
       };
     } catch (fallbackError: any) {
-      try {
-        fallbackTransporter.close();
-      } catch {}
+      const isFallbackTimeout =
+        fallbackError.message?.toLowerCase().includes("timeout") ||
+        fallbackError.code === "ETIMEDOUT" ||
+        fallbackError.code === "ESOCKET" ||
+        fallbackError.code === "ECONNRESET";
+
       log(
-        "ERROR",
-        `Fallback port ${fallbackPort} also failed: ${fallbackError.message}`,
+        "WARN",
+        `Direct SMTP ports ${primaryConfig.port} and ${fallbackPort} both failed: ${fallbackError.message}`,
         txId,
       );
+
+      // Check if HTTPS relay is available (e.g. Next.js running on Vercel)
+      const relayUrl = getRelayUrl(explicitRelayUrl);
+      if (relayUrl) {
+        log(
+          "INFO",
+          `Attempting automatic fallback to HTTPS email relay via ${relayUrl}...`,
+          txId,
+        );
+        try {
+          return await sendViaRelay(relayUrl, credential, mailOptions, txId);
+        } catch (relayError: any) {
+          log(
+            "ERROR",
+            `HTTPS relay dispatch failed: ${relayError.message}`,
+            txId,
+          );
+          throw new Error(
+            `SMTP Connection Timeout: Both direct ports (${primaryConfig.port}, ${fallbackPort}) timed out and HTTPS relay at ${relayUrl} failed: ${relayError.message}`,
+          );
+        }
+      }
+
+      // If no relay is configured, provide an actionable error message for Render users
+      if (isFallbackTimeout) {
+        const enrichedError: any = new Error(
+          `Connection timeout: Outbound SMTP ports ${primaryConfig.port} and ${fallbackPort} timed out. ` +
+            `Render Free Tier blocks outbound SMTP ports 25, 465, and 587. ` +
+            `To fix: Set FRONTEND_URL in Render environment settings to enable automatic HTTPS relay via Vercel, or upgrade to Render Starter plan ($7/mo).`,
+        );
+        enrichedError.code = "ETIMEDOUT";
+        enrichedError.isFirewallBlock = true;
+        throw enrichedError;
+      }
+
       throw fallbackError;
     }
   }

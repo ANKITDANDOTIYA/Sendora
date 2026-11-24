@@ -28,6 +28,7 @@ vi.mock("../utils/credential-service.js", () => ({
   removeTransporter: vi.fn(),
   setupEmailTransporters: vi.fn(),
   normalizeSmtpConfig: vi.fn(),
+  sendMailWithFallback: vi.fn(),
 }));
 
 vi.mock("../services/campaign-service.js", () => ({
@@ -45,7 +46,10 @@ vi.mock("html-to-text", () => ({
 }));
 
 import { prisma } from "../services/prisma.service.js";
-import { getEmailTransporter } from "../utils/credential-service.js";
+import {
+  getEmailTransporter,
+  sendMailWithFallback,
+} from "../utils/credential-service.js";
 import {
   fetchPitch,
   updateEmailStatus,
@@ -359,6 +363,7 @@ describe("sendCampaignEmail", () => {
   it("does NOT mark FAILED on Connection timeout error (retryable)", async () => {
     const timeoutError = new Error("Connection timeout");
     mockTransporter.sendMail.mockRejectedValue(timeoutError);
+    vi.mocked(sendMailWithFallback).mockRejectedValue(timeoutError);
 
     const result = await sendCampaignEmail(makeEmail(), "tx");
 
@@ -374,6 +379,7 @@ describe("sendCampaignEmail", () => {
       code: "ETIMEDOUT",
     });
     mockTransporter.sendMail.mockRejectedValue(etimedoutError);
+    vi.mocked(sendMailWithFallback).mockRejectedValue(etimedoutError);
 
     const result = await sendCampaignEmail(makeEmail(), "tx");
 

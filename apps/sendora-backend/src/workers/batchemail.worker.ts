@@ -28,7 +28,10 @@ batchemailWorker.on("failed", (job, err) => {
   console.error(`[WORKER] Job ${job?.id} has failed with error: ${err.message}`);
 });
 
-batchemailWorker.on("error", (err) => {
+batchemailWorker.on("error", (err: any) => {
+  if (err?.code === "ENOTFOUND" || err?.code === "ETIMEDOUT") {
+    return;
+  }
   console.error(`[WORKER] Batch email worker error: ${err.message}`);
 });
 

@@ -48,7 +48,7 @@ export function createRedisClient(): Redis {
     client = new Redis(redisUrl, {
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
-      connectTimeout: 30000,
+      connectTimeout: 10000,
       keepAlive: 30000,
       family: 0, // Dual-stack IPv4/IPv6 resolution (prevents ENOTFOUND on cloud endpoints)
       ...(isTls && hostname
@@ -77,7 +77,7 @@ export function createRedisClient(): Redis {
       port,
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
-      connectTimeout: 30000,
+      connectTimeout: 10000,
       keepAlive: 30000,
       retryStrategy(times: number) {
         return Math.min(times * 200, 5000);
@@ -101,8 +101,23 @@ export function createRedisClient(): Redis {
     client = new Redis(redisOptions);
   }
 
-  client.on("error", (err) => {
-    console.error(`[REDIS] Connection error: ${err.message}`);
+  let lastLoggedErrorTime = 0;
+  client.on("error", (err: any) => {
+    const now = Date.now();
+    if (now - lastLoggedErrorTime > 10000) {
+      lastLoggedErrorTime = now;
+      if (err.code === "ENOTFOUND") {
+        console.error(
+          `[REDIS] CRITICAL: Cannot resolve Redis host (${err.hostname || "unknown"}). Upstash database may be paused, expired, or deleted. Please check your Upstash console and update REDIS_URL in .env and Render dashboard.`,
+        );
+      } else if (err.code === "ETIMEDOUT") {
+        console.error(
+          `[REDIS] Connection timed out (${err.message}). Verify Redis host and network connectivity.`,
+        );
+      } else {
+        console.error(`[REDIS] Connection error: ${err.message}`);
+      }
+    }
   });
 
   return client;

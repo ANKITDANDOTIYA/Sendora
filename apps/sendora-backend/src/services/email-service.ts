@@ -628,8 +628,38 @@ export async function sendCampaignEmail(
         phase: "SMTP_ATTEMPT",
       });
 
+      let sendResult: { messageId?: string; response?: string };
       const sendStartTime = Date.now();
-      const sendResult = await transporter.sendMail(mailOptions);
+      try {
+        const rawResult = await transporter.sendMail(mailOptions);
+        sendResult = {
+          messageId: rawResult?.messageId,
+          response: rawResult?.response,
+        };
+      } catch (directError: any) {
+        const isTimeout =
+          directError.message?.toLowerCase().includes("timeout") ||
+          directError.code === "ETIMEDOUT" ||
+          directError.code === "ESOCKET" ||
+          directError.code === "ECONNRESET";
+
+        if (isTimeout && typeof sendMailWithFallback === "function") {
+          log(
+            "WARN",
+            `Direct transporter send failed (${directError.message}). Attempting sendMailWithFallback & HTTPS relay...`,
+            txId,
+          );
+          sendResult = await sendMailWithFallback(
+            credential,
+            mailOptions,
+            txId,
+            process.env.FRONTEND_URL,
+          );
+        } else {
+          throw directError;
+        }
+      }
+
       const messageId = sendResult?.messageId || `<${uuidv4()}@${credential.host || "smtp"}>`;
       const response = sendResult?.response || "250 OK";
       const sendDuration = Date.now() - sendStartTime;
@@ -745,6 +775,7 @@ export interface ImmediateSendOptions {
   leadId: string;
   userId?: string;
   isTestOnly?: boolean;
+  relayUrl?: string;
 }
 
 export interface ImmediateSendResult {
@@ -1089,11 +1120,12 @@ export async function sendSingleLeadImmediate(
       phase: "SMTP_ATTEMPT",
     });
 
-    // Send using fallback capability (port 465 <-> 587)
+    // Send using fallback capability (port 465 <-> 587 and HTTPS relay)
     const sendResult = await sendMailWithFallback(
       credential,
       mailOptions,
       txId,
+      options.relayUrl,
     );
     const durationMs = Date.now() - startTime;
 

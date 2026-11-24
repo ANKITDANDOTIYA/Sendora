@@ -23,7 +23,10 @@ campaignWorker.on("failed", (job, err) => {
   );
 });
 
-campaignWorker.on("error", (err) => {
+campaignWorker.on("error", (err: any) => {
+  if (err?.code === "ENOTFOUND" || err?.code === "ETIMEDOUT") {
+    return;
+  }
   console.error(`[WORKER] Campaign worker error: ${err.message}`);
 });
 

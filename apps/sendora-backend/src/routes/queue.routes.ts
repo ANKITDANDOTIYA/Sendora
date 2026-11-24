@@ -97,7 +97,7 @@ queueRoutes.post("/trigger-campaign", async (c) => {
 // Immediate send to a single selected lead (for manual testing & debug)
 queueRoutes.post("/send-lead", async (c) => {
   try {
-    const { campaignId, leadId, userId, isTestOnly } = await c.req.json();
+    const { campaignId, leadId, userId, isTestOnly, relayUrl } = await c.req.json();
 
     if (!campaignId || !leadId) {
       return c.json(
@@ -115,6 +115,7 @@ queueRoutes.post("/send-lead", async (c) => {
       leadId,
       userId,
       isTestOnly: isTestOnly !== false, // Defaults to test-mode (does not prematurely complete lead)
+      relayUrl,
     });
 
     if (result.success) {
