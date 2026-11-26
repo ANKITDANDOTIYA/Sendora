@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 30;
+
 /**
  * HTTPS Email Relay Endpoint (runs on Vercel)
  * 
@@ -11,13 +15,26 @@ import nodemailer from "nodemailer";
  */
 export async function POST(request) {
   try {
-    const authHeader = request.headers.get("x-relay-secret");
-    const expectedSecret =
-      process.env.INTERNAL_RELAY_SECRET ||
-      process.env.JWT_SECRET ||
-      "sendora-relay-secret";
+    const rawSecret =
+      request.headers.get("x-relay-secret") ||
+      request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
+      "";
+    const authHeader = rawSecret.trim();
 
-    if (!authHeader || authHeader !== expectedSecret) {
+    // Collect all valid configured secrets
+    const validSecrets = [
+      process.env.INTERNAL_RELAY_SECRET,
+      process.env.JWT_SECRET,
+    ]
+      .filter(Boolean)
+      .map((s) => s.trim());
+
+    // Fallback secret if none are explicitly set in environment
+    if (validSecrets.length === 0) {
+      validSecrets.push("sendora-relay-secret");
+    }
+
+    if (!authHeader || !validSecrets.includes(authHeader)) {
       return NextResponse.json(
         { success: false, error: "Unauthorized relay request" },
         { status: 401 },

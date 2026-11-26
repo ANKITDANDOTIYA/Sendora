@@ -5,6 +5,10 @@ import nodemailer from "nodemailer";
 import Hogan from "hogan.js";
 import prisma from "@/lib/prisma";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 30;
+
 export async function POST(request, { params }) {
   const { id: campaignId, leadId } = await params;
   const token = request.headers.get("authorization");
@@ -56,7 +60,7 @@ export async function POST(request, { params }) {
       },
       {
         validateStatus: () => true,
-        timeout: 14000,
+        timeout: 6000,
       },
     );
 
@@ -245,11 +249,18 @@ export async function POST(request, { params }) {
       ? `"${senderName}" <${credential.username}>`
       : credential.username;
 
+    const plainText = renderedBody
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
     const mailOptions = {
       from: fromAddress,
       to: lead.email.trim(),
       subject: renderedSubject,
       html: renderedBody,
+      text: plainText,
     };
 
     // Helper to send via Nodemailer on Vercel
@@ -264,6 +275,7 @@ export async function POST(request, { params }) {
         },
         connectionTimeout: 10000,
         greetingTimeout: 10000,
+        requireTLS: !secure,
         tls: {
           rejectUnauthorized: false,
           minVersion: "TLSv1.2",

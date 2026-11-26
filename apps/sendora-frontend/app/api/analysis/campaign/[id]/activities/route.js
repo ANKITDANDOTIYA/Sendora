@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
 import { jwtDecode } from "jwt-decode";
 import Hogan from "hogan.js";
+import { DateTime } from "luxon";
 import prisma from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
 
 /**
  * GET /api/analysis/campaign/[id]/activities?date=2026-02-25
  *
  * Returns all activities for a single day (or today by default).
  * Supports fetching up to 50 events per type so we get a full day picture.
+ * Accurately aligns with the user's configured timezone.
  */
 export async function GET(request, { params }) {
   try {
@@ -22,8 +26,12 @@ export async function GET(request, { params }) {
       );
     }
 
-    // Verify ownership
-    const campaign = await prisma.campaign.findUnique({ where: { id } });
+    // Verify ownership and load user timezone
+    const campaign = await prisma.campaign.findUnique({
+      where: { id },
+      include: { user: true },
+    });
+
     if (!campaign || campaign.userId !== currUser.userId) {
       return NextResponse.json(
         { error: "Unauthorized access to campaign" },
@@ -31,30 +39,26 @@ export async function GET(request, { params }) {
       );
     }
 
-    // Parse target date from query string (YYYY-MM-DD) – defaults to today
+    // Parse target date and timezone
     const { searchParams } = new URL(request.url);
     const dateParam = searchParams.get("date");
+    const clientTz = searchParams.get("tz");
+    const userTimezone = clientTz || campaign.user?.timezone || "UTC";
 
     let dayStart, dayEnd;
     if (dateParam) {
-      dayStart = new Date(`${dateParam}T00:00:00.000Z`);
-      dayEnd = new Date(`${dateParam}T23:59:59.999Z`);
+      const dt = DateTime.fromISO(dateParam, { zone: userTimezone });
+      if (dt.isValid) {
+        dayStart = dt.startOf("day").toJSDate();
+        dayEnd = dt.endOf("day").toJSDate();
+      } else {
+        dayStart = new Date(`${dateParam}T00:00:00.000Z`);
+        dayEnd = new Date(`${dateParam}T23:59:59.999Z`);
+      }
     } else {
-      const now = new Date();
-      dayStart = new Date(
-        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
-      );
-      dayEnd = new Date(
-        Date.UTC(
-          now.getUTCFullYear(),
-          now.getUTCMonth(),
-          now.getUTCDate(),
-          23,
-          59,
-          59,
-          999,
-        ),
-      );
+      const now = DateTime.now().setZone(userTimezone);
+      dayStart = now.startOf("day").toJSDate();
+      dayEnd = now.endOf("day").toJSDate();
     }
 
     const activities = [];

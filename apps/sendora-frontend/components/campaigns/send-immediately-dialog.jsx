@@ -66,6 +66,10 @@ export default function SendImmediatelyDialog({
         updateUser({ credits: Math.max(0, (user?.credits || 0) - 1) });
       }
       mutate("/api/user/view");
+      mutate("/api/dashboard/stats");
+      mutate((key) => typeof key === "string" && key.includes(`/api/analysis/campaign/${campaignId}`));
+      mutate((key) => typeof key === "string" && key.includes(`/api/today_analysis/${campaignId}`));
+      mutate((key) => typeof key === "string" && key.includes(`/api/contacts`));
 
       toast.success(`Test email sent to ${lead.email} successfully!`);
       revalidateCampaignLeads(campaignId);
@@ -192,7 +196,10 @@ export default function SendImmediatelyDialog({
                     <strong>Mailbox:</strong> {result.data?.credentialUsed || "Connected SMTP"}
                   </p>
                   <p>
-                    <strong>Response:</strong> {result.data?.smtpResponse || "250 OK"} ({result.data?.durationMs}ms)
+                    <strong>Response:</strong> {result.data?.smtpResponse || "250 OK"} ({result.data?.durationMs || "<1000"}ms)
+                  </p>
+                  <p className="mt-1 pt-1 border-t border-green-200 text-[11px] text-green-800">
+                    💡 <em>Check the recipient's Inbox, Spam / Junk folder, or All Mail. If the recipient is your own sender address, Gmail routes it to your <strong>Sent</strong> folder by default.</em>
                   </p>
                 </>
               ) : (

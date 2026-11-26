@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { jwtDecode } from "jwt-decode";
 import prisma from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/analysis/campaign/[id]/daily-stats
  *
@@ -22,7 +24,10 @@ export async function GET(request, { params }) {
     }
 
     // Verify campaign ownership
-    const campaign = await prisma.campaign.findUnique({ where: { id } });
+    const campaign = await prisma.campaign.findUnique({
+      where: { id },
+      include: { user: true },
+    });
     if (!campaign || campaign.userId !== currUser.userId) {
       return NextResponse.json(
         { error: "Unauthorized access to campaign" },

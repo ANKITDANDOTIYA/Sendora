@@ -221,8 +221,13 @@ export function logDeliveryLifecycle(data: DeliveryLifecycleLog): void {
  * Prefers configured BACKEND_URL, then Render-provided environment variables,
  * falling back to local port (never a dead external domain).
  */
-export function getTrackingBaseUrl(): string {
-  if (process.env.BACKEND_URL && process.env.BACKEND_URL.trim() !== "") {
+export function getTrackingBaseUrl(): string | null {
+  if (
+    process.env.BACKEND_URL &&
+    process.env.BACKEND_URL.trim() !== "" &&
+    !process.env.BACKEND_URL.includes("localhost") &&
+    !process.env.BACKEND_URL.includes("127.0.0.1")
+  ) {
     return process.env.BACKEND_URL.trim().replace(/\/$/, "");
   }
   if (process.env.RENDER_EXTERNAL_URL && process.env.RENDER_EXTERNAL_URL.trim() !== "") {
@@ -230,6 +235,10 @@ export function getTrackingBaseUrl(): string {
   }
   if (process.env.RENDER_EXTERNAL_HOSTNAME && process.env.RENDER_EXTERNAL_HOSTNAME.trim() !== "") {
     return `https://${process.env.RENDER_EXTERNAL_HOSTNAME.trim()}`.replace(/\/$/, "");
+  }
+  if (process.env.NODE_ENV === "production") {
+    // In production, never inject localhost tracking URLs into recipient mailboxes (causes spam flagging)
+    return null;
   }
   const port = process.env.PORT || 8100;
   return `http://localhost:${port}`;
@@ -518,14 +527,14 @@ export async function sendCampaignEmail(
 
     let processedBody = body;
 
-    // Add tracking pixel only if tracking is enabled
+    // Add tracking pixel only if tracking is enabled and a valid public base URL exists
     if (isTrackingEnabled) {
       const baseUrl = getTrackingBaseUrl();
-      const trackingUrl = `${baseUrl}/tracking/open?id=${email.id}`;
-      const trackingPixel = `<img src="${trackingUrl}" width="1" height="1" alt="" style="display:none;width:1px;height:1px;" />`;
-
-      // Add the tracking pixel at the end of the email body
-      processedBody = body + trackingPixel;
+      if (baseUrl) {
+        const trackingUrl = `${baseUrl}/tracking/open?id=${email.id}`;
+        const trackingPixel = `<img src="${trackingUrl}" width="1" height="1" alt="" style="display:none;width:1px;height:1px;" />`;
+        processedBody = body + trackingPixel;
+      }
     }
 
     // Double-check recipient email before sending
@@ -1081,8 +1090,10 @@ export async function sendSingleLeadImmediate(
     let processedBody = body;
     if (lead.campaign?.isTrackingEnabled) {
       const baseUrl = getTrackingBaseUrl();
-      const trackingUrl = `${baseUrl}/tracking/open?id=${lead.id}`;
-      processedBody += `<img src="${trackingUrl}" width="1" height="1" alt="" style="display:none;width:1px;height:1px;" />`;
+      if (baseUrl) {
+        const trackingUrl = `${baseUrl}/tracking/open?id=${lead.id}`;
+        processedBody += `<img src="${trackingUrl}" width="1" height="1" alt="" style="display:none;width:1px;height:1px;" />`;
+      }
     }
 
     const senderName = lead.campaign?.user?.name;

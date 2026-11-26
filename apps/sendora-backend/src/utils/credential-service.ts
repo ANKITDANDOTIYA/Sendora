@@ -335,6 +335,7 @@ export async function sendViaRelay(
     headers: {
       "Content-Type": "application/json",
       "x-relay-secret": relaySecret,
+      Authorization: `Bearer ${relaySecret}`,
     },
     body: JSON.stringify({
       credential: {
