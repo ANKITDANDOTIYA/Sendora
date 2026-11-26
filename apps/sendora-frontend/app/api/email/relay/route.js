@@ -24,6 +24,7 @@ export async function POST(request) {
     // Collect all valid configured secrets
     const validSecrets = [
       process.env.INTERNAL_RELAY_SECRET,
+      process.env.RELAY_SECRET,
       process.env.JWT_SECRET,
     ]
       .filter(Boolean)

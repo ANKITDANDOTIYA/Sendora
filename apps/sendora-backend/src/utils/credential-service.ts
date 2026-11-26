@@ -321,6 +321,7 @@ export async function sendViaRelay(
   const relayEndpoint = `${cleanUrl}/api/email/relay`;
   const relaySecret =
     process.env.INTERNAL_RELAY_SECRET ||
+    process.env.RELAY_SECRET ||
     process.env.JWT_SECRET ||
     "sendora-relay-secret";
 

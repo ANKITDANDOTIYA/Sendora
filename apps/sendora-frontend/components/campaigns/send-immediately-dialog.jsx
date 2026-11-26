@@ -199,7 +199,7 @@ export default function SendImmediatelyDialog({
                     <strong>Response:</strong> {result.data?.smtpResponse || "250 OK"} ({result.data?.durationMs || "<1000"}ms)
                   </p>
                   <p className="mt-1 pt-1 border-t border-green-200 text-[11px] text-green-800">
-                    💡 <em>Check the recipient's Inbox, Spam / Junk folder, or All Mail. If the recipient is your own sender address, Gmail routes it to your <strong>Sent</strong> folder by default.</em>
+                    💡 <em>Check the recipient&apos;s Inbox, Spam / Junk folder, or All Mail. If the recipient is your own sender address, Gmail routes it to your <strong>Sent</strong> folder by default.</em>
                   </p>
                 </>
               ) : (
